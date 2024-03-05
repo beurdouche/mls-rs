@@ -81,10 +81,10 @@ hex = { version = "^0.4.3", default-features = false, features = ["serde", "allo
 futures = { version = "0.3.25", default-features = false, features = ["alloc"]}
 async-trait = "0.1.74"
 
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic = { version = "1.5.1", default-features = false, features = ["critical-section"] }
-portable-atomic-util = { version = "0.1.2", default-features = false, features = ["alloc"] }
-spin = { version = "0.9.8", default-features = false, features = ["portable_atomic"] }
+# [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+# portable-atomic = { version = "1.5.1", default-features = false, features = ["critical-section"] }
+# portable-atomic-util = { version = "0.1.2", default-features = false, features = ["alloc"] }
+# spin = { version = "0.9.8", default-features = false, features = ["portable_atomic"] }
 
 [target.'cfg(mls_build_async)'.dev-dependencies]
 futures-test = "0.3.25"
