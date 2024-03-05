@@ -9,10 +9,10 @@ use core::{
 };
 use zeroize::Zeroizing;
 
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[derive(Clone, Eq, PartialEq)]
 /// Wrapper struct that represents a zeroize-on-drop `Vec<u8>`
 pub struct Secret(Zeroizing<Vec<u8>>);
@@ -23,7 +23,7 @@ impl Debug for Secret {
     }
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl Secret {
     pub fn as_bytes(&self) -> &[u8] {
         &self.0

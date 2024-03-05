@@ -13,10 +13,10 @@ use super::ConfirmedTranscriptHash;
 
 #[derive(Clone, PartialEq, MlsSize, MlsEncode, MlsDecode)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GroupContext {
     pub(crate) protocol_version: ProtocolVersion,
@@ -52,7 +52,7 @@ impl Debug for GroupContext {
     }
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), ::safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), ::safer_ffi_gen::safer_ffi_gen)]
 impl GroupContext {
     pub(crate) fn new_group(
         protocol_version: ProtocolVersion,

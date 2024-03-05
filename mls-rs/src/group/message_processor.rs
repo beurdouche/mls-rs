@@ -172,10 +172,10 @@ impl StateUpdate {
     }
 }
 
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 /// An event generated as a result of processing a message for a group with
@@ -233,10 +233,10 @@ impl From<KeyPackage> for ReceivedMessage {
     }
 }
 
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[derive(Clone, PartialEq, Eq)]
 /// Description of a MLS application message.
 pub struct ApplicationMessageDescription {
@@ -261,17 +261,17 @@ impl Debug for ApplicationMessageDescription {
     }
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl ApplicationMessageDescription {
     pub fn data(&self) -> &[u8] {
         self.data.as_bytes()
     }
 }
 
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[derive(Clone, PartialEq)]
 #[non_exhaustive]
 /// Description of a processed MLS commit message.
@@ -328,10 +328,10 @@ impl TryFrom<Sender> for ProposalSender {
 }
 
 #[cfg(feature = "by_ref_proposal")]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[derive(Clone)]
 #[non_exhaustive]
 /// Description of a processed MLS proposal message.
@@ -404,10 +404,10 @@ impl ProposalMessageDescription {
 }
 
 #[cfg(not(feature = "by_ref_proposal"))]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[derive(Debug, Clone)]
 /// Description of a processed MLS proposal message.
 pub struct ProposalMessageDescription {}

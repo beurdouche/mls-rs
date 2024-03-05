@@ -17,10 +17,10 @@ use super::ProposalType;
 
 #[derive(Clone, PartialEq, Eq, Debug, MlsSize, MlsEncode, MlsDecode)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 ///  Capabilities of a MLS client
 pub struct Capabilities {
@@ -31,10 +31,10 @@ pub struct Capabilities {
     pub credentials: Vec<CredentialType>,
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl Capabilities {
     /// Supported protocol versions
-    #[cfg(feature = "ffi")]
+    // #[cfg(feature = "ffi")]
     pub fn protocol_versions(&self) -> &[ProtocolVersion] {
         &self.protocol_versions
     }
@@ -90,10 +90,10 @@ impl Default for Capabilities {
 }
 
 /// A member of a MLS group.
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Member {
@@ -110,7 +110,7 @@ pub struct Member {
     pub extensions: ExtensionList,
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl Member {
     pub fn new(
         index: u32,
@@ -156,17 +156,17 @@ impl Member {
 
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 /// Update of a member due to a commit.
 pub struct MemberUpdate {
     pub prior: Member,
     pub new: Member,
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl MemberUpdate {
     /// Create a new member update.
     pub fn new(prior: Member, new: Member) -> MemberUpdate {

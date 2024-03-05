@@ -210,10 +210,10 @@ impl Debug for Welcome {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[non_exhaustive]
 /// Information provided to new members upon joining a group.
 pub struct NewMemberInfo {
@@ -222,7 +222,7 @@ pub struct NewMemberInfo {
     pub group_info_extensions: ExtensionList,
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl NewMemberInfo {
     pub(crate) fn new(group_info_extensions: ExtensionList) -> Self {
         let mut new_member_info = Self {
@@ -252,7 +252,7 @@ impl NewMemberInfo {
 /// to advance to the next epoch by applying existing proposals sent in
 /// the current epoch by-reference along with an optional set of proposals
 /// that are included by-value using a [`CommitBuilder`].
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::ffi_type(opaque))]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::ffi_type(opaque))]
 #[derive(Clone)]
 pub struct Group<C>
 where
@@ -277,7 +277,7 @@ where
     pub(crate) signer: SignatureSecretKey,
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl<C> Group<C>
 where
     C: ClientConfig + Clone,
@@ -664,7 +664,7 @@ where
     }
 
     /// Signing identity currently in use by the local group instance.
-    #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen_ignore)]
+    // #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen_ignore)]
     pub fn current_member_signing_identity(&self) -> Result<&SigningIdentity, MlsError> {
         self.current_user_leaf_node().map(|ln| &ln.signing_identity)
     }

@@ -15,10 +15,10 @@ use super::{Credential, CredentialType, MlsCredential};
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, MlsSize, MlsEncode, MlsDecode)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// X.509 certificate in DER format.
 pub struct DerCertificate(
@@ -35,7 +35,7 @@ impl Debug for DerCertificate {
     }
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl DerCertificate {
     /// Create a der certificate from raw bytes.
     pub fn new(data: Vec<u8>) -> DerCertificate {
@@ -70,10 +70,10 @@ impl AsRef<[u8]> for DerCertificate {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, MlsSize, MlsEncode, MlsDecode)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// A chain of [`DerCertificate`] that is ordered from leaf to root.
 ///

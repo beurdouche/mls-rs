@@ -30,10 +30,10 @@ pub(crate) use generator::*;
 #[non_exhaustive]
 #[derive(Clone, MlsSize, MlsEncode, MlsDecode, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct KeyPackage {
     pub version: ProtocolVersion,
@@ -64,10 +64,10 @@ impl Debug for KeyPackage {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, MlsSize, MlsEncode, MlsDecode)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(feature = "ffi", not(test)),
-    safer_ffi_gen::ffi_type(clone, opaque)
-)]
+// #[cfg_attr(
+//     all(feature = "ffi", not(test)),
+//     safer_ffi_gen::ffi_type(clone, opaque)
+// )]
 pub struct KeyPackageRef(HashReference);
 
 impl Deref for KeyPackageRef {
@@ -94,7 +94,7 @@ struct KeyPackageData<'a> {
     pub extensions: &'a ExtensionList,
 }
 
-#[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
+// #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen)]
 impl KeyPackage {
     #[cfg(feature = "ffi")]
     pub fn version(&self) -> ProtocolVersion {
@@ -110,7 +110,7 @@ impl KeyPackage {
         &self.leaf_node.signing_identity
     }
 
-    #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen_ignore)]
+    // #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen_ignore)]
     #[cfg_attr(not(mls_build_async), maybe_async::must_be_sync)]
     pub async fn to_reference<CP: CipherSuiteProvider>(
         &self,
