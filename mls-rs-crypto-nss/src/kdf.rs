@@ -4,10 +4,14 @@
 
 use core::fmt::Debug;
 
-use hkdf::SimpleHkdf;
+extern crate hkdf as nss_hkdf;
+extern crate sha2 as nss_sha2;
+
 use mls_rs_core::{crypto::CipherSuite, error::IntoAnyError};
 use mls_rs_crypto_traits::{KdfId, KdfType};
-use sha2::{Sha256, Sha384, Sha512};
+
+// use nss_hkdf::SimpleHkdf;
+// use nss_sha2::{Sha256, Sha384, Sha512};
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -73,9 +77,18 @@ impl KdfType for Kdf {
         let mut buf = vec![0u8; len];
 
         match self.0 {
-            KdfId::HkdfSha256 => Ok(SimpleHkdf::<Sha256>::from_prk(prk)?.expand(info, &mut buf)?),
-            KdfId::HkdfSha384 => Ok(SimpleHkdf::<Sha384>::from_prk(prk)?.expand(info, &mut buf)?),
-            KdfId::HkdfSha512 => Ok(SimpleHkdf::<Sha512>::from_prk(prk)?.expand(info, &mut buf)?),
+            KdfId::HkdfSha256 => {
+                Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha256>::from_prk(prk)?
+                    .expand(info, &mut buf)?)
+            }
+            KdfId::HkdfSha384 => {
+                Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha384>::from_prk(prk)?
+                    .expand(info, &mut buf)?)
+            }
+            KdfId::HkdfSha512 => {
+                Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha512>::from_prk(prk)?
+                    .expand(info, &mut buf)?)
+            }
             _ => Err(KdfError::UnsupportedCipherSuite),
         }?;
 
@@ -90,9 +103,15 @@ impl KdfType for Kdf {
         let salt = if salt.is_empty() { None } else { Some(salt) };
 
         match self.0 {
-            KdfId::HkdfSha256 => Ok(SimpleHkdf::<Sha256>::extract(salt, ikm).0.to_vec()),
-            KdfId::HkdfSha384 => Ok(SimpleHkdf::<Sha384>::extract(salt, ikm).0.to_vec()),
-            KdfId::HkdfSha512 => Ok(SimpleHkdf::<Sha512>::extract(salt, ikm).0.to_vec()),
+            KdfId::HkdfSha256 => Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha256>::extract(salt, ikm)
+                .0
+                .to_vec()),
+            KdfId::HkdfSha384 => Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha384>::extract(salt, ikm)
+                .0
+                .to_vec()),
+            KdfId::HkdfSha512 => Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha512>::extract(salt, ikm)
+                .0
+                .to_vec()),
             _ => Err(KdfError::UnsupportedCipherSuite),
         }
     }

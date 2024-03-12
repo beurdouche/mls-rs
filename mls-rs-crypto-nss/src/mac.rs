@@ -2,14 +2,20 @@
 // Copyright by contributors to this project.
 // SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-use hmac::{
-    digest::{crypto_common::BlockSizeUser, FixedOutputReset},
-    Mac, SimpleHmac,
-};
-use mls_rs_core::crypto::CipherSuite;
-use sha2::{Digest, Sha256, Sha384, Sha512};
+extern crate hmac as nss_hmac;
+extern crate sha2 as nss_sha2;
 
 use alloc::vec::Vec;
+use mls_rs_core::crypto::CipherSuite;
+
+use nss_hmac::Mac;
+use nss_sha2::Digest;
+
+// use nss_hmac::{
+//     digest::{crypto_common::BlockSizeUser, FixedOutputReset},
+//     SimpleHmac,
+// };
+// use nss_sha2::{Sha256, Sha384, Sha512};
 
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
@@ -44,26 +50,26 @@ impl Hash {
 
     pub fn hash(&self, data: &[u8]) -> Vec<u8> {
         match self {
-            Hash::Sha256 => Sha256::digest(data).to_vec(),
-            Hash::Sha384 => Sha384::digest(data).to_vec(),
-            Hash::Sha512 => Sha512::digest(data).to_vec(),
+            Hash::Sha256 => nss_sha2::Sha256::digest(data).to_vec(),
+            Hash::Sha384 => nss_sha2::Sha384::digest(data).to_vec(),
+            Hash::Sha512 => nss_sha2::Sha512::digest(data).to_vec(),
         }
     }
 
     pub fn mac(&self, key: &[u8], data: &[u8]) -> Result<Vec<u8>, HashError> {
         match self {
             Hash::Sha256 => generic_generate_tag(
-                SimpleHmac::<Sha256>::new_from_slice(key)
+                nss_hmac::SimpleHmac::<nss_sha2::Sha256>::new_from_slice(key)
                     .map_err(|_| HashError::InvalidHmacLength)?,
                 data,
             ),
             Hash::Sha384 => generic_generate_tag(
-                SimpleHmac::<Sha384>::new_from_slice(key)
+                nss_hmac::SimpleHmac::<nss_sha2::Sha384>::new_from_slice(key)
                     .map_err(|_| HashError::InvalidHmacLength)?,
                 data,
             ),
             Hash::Sha512 => generic_generate_tag(
-                SimpleHmac::<Sha512>::new_from_slice(key)
+                nss_hmac::SimpleHmac::<nss_sha2::Sha512>::new_from_slice(key)
                     .map_err(|_| HashError::InvalidHmacLength)?,
                 data,
             ),
@@ -71,8 +77,10 @@ impl Hash {
     }
 }
 
-fn generic_generate_tag<D: Digest + BlockSizeUser + FixedOutputReset>(
-    mut hmac: SimpleHmac<D>,
+fn generic_generate_tag<
+    D: nss_sha2::Digest + hmac::digest::crypto_common::BlockSizeUser + hmac::digest::FixedOutputReset,
+>(
+    mut hmac: nss_hmac::SimpleHmac<D>,
     data: &[u8],
 ) -> Result<Vec<u8>, HashError> {
     hmac.update(data);
