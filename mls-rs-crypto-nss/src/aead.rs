@@ -11,8 +11,8 @@ use core::fmt::Debug;
 use mls_rs_core::{crypto::CipherSuite, error::IntoAnyError};
 use mls_rs_crypto_traits::{AeadId, AeadType, AES_TAG_LEN};
 
-use nss_aead::{generic_array::GenericArray, Payload};
 use nss_aes_gcm::KeyInit;
+// use nss_aead::{generic_array::GenericArray, Payload};
 // use nss_aes_gcm::{Aes128Gcm, Aes256Gcm};
 // use nss_chacha20poly1305::ChaCha20Poly1305;
 
@@ -87,16 +87,21 @@ impl AeadType for Aead {
 
         match self.0 {
             AeadId::Aes128Gcm => {
-                let cipher = nss_aes_gcm::Aes128Gcm::new(GenericArray::from_slice(key));
+                let cipher = nss_aes_gcm::Aes128Gcm::new(
+                    nss_aead::generic_array::GenericArray::from_slice(key),
+                );
                 encrypt_aead_trait(cipher, data, aad, nonce)
             }
             AeadId::Aes256Gcm => {
-                let cipher = nss_aes_gcm::Aes256Gcm::new(GenericArray::from_slice(key));
+                let cipher = nss_aes_gcm::Aes256Gcm::new(
+                    nss_aead::generic_array::GenericArray::from_slice(key),
+                );
                 encrypt_aead_trait(cipher, data, aad, nonce)
             }
             AeadId::Chacha20Poly1305 => {
-                let cipher =
-                    nss_chacha20poly1305::ChaCha20Poly1305::new(GenericArray::from_slice(key));
+                let cipher = nss_chacha20poly1305::ChaCha20Poly1305::new(
+                    nss_aead::generic_array::GenericArray::from_slice(key),
+                );
                 encrypt_aead_trait(cipher, data, aad, nonce)
             }
             _ => Err(AeadError::UnsupportedCipherSuite),
@@ -121,16 +126,21 @@ impl AeadType for Aead {
 
         match self.0 {
             AeadId::Aes128Gcm => {
-                let cipher = nss_aes_gcm::Aes128Gcm::new(GenericArray::from_slice(key));
+                let cipher = nss_aes_gcm::Aes128Gcm::new(
+                    nss_aead::generic_array::GenericArray::from_slice(key),
+                );
                 decrypt_aead_trait(cipher, ciphertext, aad, nonce)
             }
             AeadId::Aes256Gcm => {
-                let cipher = nss_aes_gcm::Aes256Gcm::new(GenericArray::from_slice(key));
+                let cipher = nss_aes_gcm::Aes256Gcm::new(
+                    nss_aead::generic_array::GenericArray::from_slice(key),
+                );
                 decrypt_aead_trait(cipher, ciphertext, aad, nonce)
             }
             AeadId::Chacha20Poly1305 => {
-                let cipher =
-                    nss_chacha20poly1305::ChaCha20Poly1305::new(GenericArray::from_slice(key));
+                let cipher = nss_chacha20poly1305::ChaCha20Poly1305::new(
+                    nss_aead::generic_array::GenericArray::from_slice(key),
+                );
                 decrypt_aead_trait(cipher, ciphertext, aad, nonce)
             }
             _ => Err(AeadError::UnsupportedCipherSuite),
@@ -157,12 +167,15 @@ fn encrypt_aead_trait(
     aad: Option<&[u8]>,
     nonce: &[u8],
 ) -> Result<Vec<u8>, AeadError> {
-    let payload = Payload {
+    let payload = nss_aead::Payload {
         msg: data,
         aad: aad.unwrap_or_default(),
     };
 
-    Ok(cipher.encrypt(GenericArray::from_slice(nonce), payload)?)
+    Ok(cipher.encrypt(
+        nss_aead::generic_array::GenericArray::from_slice(nonce),
+        payload,
+    )?)
 }
 
 fn decrypt_aead_trait(
@@ -171,12 +184,15 @@ fn decrypt_aead_trait(
     aad: Option<&[u8]>,
     nonce: &[u8],
 ) -> Result<Vec<u8>, AeadError> {
-    let payload = Payload {
+    let payload = nss_aead::Payload {
         msg: ciphertext,
         aad: aad.unwrap_or_default(),
     };
 
-    Ok(cipher.decrypt(GenericArray::from_slice(nonce), payload)?)
+    Ok(cipher.decrypt(
+        nss_aead::generic_array::GenericArray::from_slice(nonce),
+        payload,
+    )?)
 }
 
 #[cfg(all(not(mls_build_async), test))]
