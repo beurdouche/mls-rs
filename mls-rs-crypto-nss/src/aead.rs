@@ -2,15 +2,18 @@
 // Copyright by contributors to this project.
 // SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-extern crate aead as rc_aead;
+extern crate aead as nss_aead;
+extern crate aes_gcm as nss_aes_gcm;
+extern crate chacha20poly1305 as nss_chacha20poly1305;
 
 use core::fmt::Debug;
 
-use aes_gcm::{Aes128Gcm, Aes256Gcm, KeyInit};
-use chacha20poly1305::ChaCha20Poly1305;
 use mls_rs_core::{crypto::CipherSuite, error::IntoAnyError};
 use mls_rs_crypto_traits::{AeadId, AeadType, AES_TAG_LEN};
-use rc_aead::{generic_array::GenericArray, Payload};
+
+use nss_aead::{generic_array::GenericArray, Payload};
+use nss_aes_gcm::{Aes128Gcm, Aes256Gcm, KeyInit};
+// use nss_chacha20poly1305::ChaCha20Poly1305;
 
 use alloc::vec::Vec;
 
@@ -18,7 +21,7 @@ use alloc::vec::Vec;
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 pub enum AeadError {
     #[cfg_attr(feature = "std", error("Rc AEAD Error"))]
-    RcAeadError(rc_aead::Error),
+    RcAeadError(nss_aead::Error),
     #[cfg_attr(
         feature = "std",
         error("AEAD ciphertext of length {0} is too short to fit the tag")
@@ -35,8 +38,8 @@ pub enum AeadError {
     UnsupportedCipherSuite,
 }
 
-impl From<rc_aead::Error> for AeadError {
-    fn from(value: rc_aead::Error) -> Self {
+impl From<nss_aead::Error> for AeadError {
+    fn from(value: nss_aead::Error) -> Self {
         AeadError::RcAeadError(value)
     }
 }
@@ -83,15 +86,16 @@ impl AeadType for Aead {
 
         match self.0 {
             AeadId::Aes128Gcm => {
-                let cipher = Aes128Gcm::new(GenericArray::from_slice(key));
+                let cipher = nss_aes_gcm::Aes128Gcm::new(GenericArray::from_slice(key));
                 encrypt_aead_trait(cipher, data, aad, nonce)
             }
             AeadId::Aes256Gcm => {
-                let cipher = Aes256Gcm::new(GenericArray::from_slice(key));
+                let cipher = nss_aes_gcm::Aes256Gcm::new(GenericArray::from_slice(key));
                 encrypt_aead_trait(cipher, data, aad, nonce)
             }
             AeadId::Chacha20Poly1305 => {
-                let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(key));
+                let cipher =
+                    nss_chacha20poly1305::ChaCha20Poly1305::new(GenericArray::from_slice(key));
                 encrypt_aead_trait(cipher, data, aad, nonce)
             }
             _ => Err(AeadError::UnsupportedCipherSuite),
@@ -116,15 +120,16 @@ impl AeadType for Aead {
 
         match self.0 {
             AeadId::Aes128Gcm => {
-                let cipher = Aes128Gcm::new(GenericArray::from_slice(key));
+                let cipher = nss_aes_gcm::Aes128Gcm::new(GenericArray::from_slice(key));
                 decrypt_aead_trait(cipher, ciphertext, aad, nonce)
             }
             AeadId::Aes256Gcm => {
-                let cipher = Aes256Gcm::new(GenericArray::from_slice(key));
+                let cipher = nss_aes_gcm::Aes256Gcm::new(GenericArray::from_slice(key));
                 decrypt_aead_trait(cipher, ciphertext, aad, nonce)
             }
             AeadId::Chacha20Poly1305 => {
-                let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(key));
+                let cipher =
+                    nss_chacha20poly1305::ChaCha20Poly1305::new(GenericArray::from_slice(key));
                 decrypt_aead_trait(cipher, ciphertext, aad, nonce)
             }
             _ => Err(AeadError::UnsupportedCipherSuite),
@@ -146,7 +151,7 @@ impl AeadType for Aead {
 }
 
 fn encrypt_aead_trait(
-    cipher: impl rc_aead::Aead,
+    cipher: impl nss_aead::Aead,
     data: &[u8],
     aad: Option<&[u8]>,
     nonce: &[u8],
@@ -160,7 +165,7 @@ fn encrypt_aead_trait(
 }
 
 fn decrypt_aead_trait(
-    cipher: impl rc_aead::Aead,
+    cipher: impl nss_aead::Aead,
     ciphertext: &[u8],
     aad: Option<&[u8]>,
     nonce: &[u8],
