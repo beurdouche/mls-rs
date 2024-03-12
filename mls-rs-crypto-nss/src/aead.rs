@@ -12,7 +12,8 @@ use mls_rs_core::{crypto::CipherSuite, error::IntoAnyError};
 use mls_rs_crypto_traits::{AeadId, AeadType, AES_TAG_LEN};
 
 use nss_aead::{generic_array::GenericArray, Payload};
-use nss_aes_gcm::{Aes128Gcm, Aes256Gcm, KeyInit};
+use nss_aes_gcm::KeyInit;
+// use nss_aes_gcm::{Aes128Gcm, Aes256Gcm};
 // use nss_chacha20poly1305::ChaCha20Poly1305;
 
 use alloc::vec::Vec;
