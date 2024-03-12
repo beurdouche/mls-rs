@@ -5,6 +5,12 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+extern crate ed25519_dalek as nss_ed25519;
+extern crate p256 as nss_p256;
+
+use nss_ed25519::Signer;
+use nss_p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
+
 use alloc::vec::Vec;
 use mls_rs_crypto_traits::Curve;
 
@@ -13,10 +19,8 @@ use std::array::TryFromSliceError;
 
 #[cfg(not(feature = "std"))]
 use core::array::TryFromSliceError;
-
 use core::fmt::{self, Debug};
-use ed25519_dalek::Signer;
-use p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
+
 use rand_core::OsRng;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
