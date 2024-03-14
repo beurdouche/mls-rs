@@ -125,6 +125,35 @@ impl KdfType for Kdf {
     }
 }
 
+// #[async_trait::async_trait]
+// impl KdfType for Hkdf {
+//     type Error = crate::Error; // Adapt this to your actual error type
+
+//     fn kdf_id(&self) -> u16 {
+//         match self.kdf {
+//             Kdf::HkdfSha256 => KdfId::HkdfSha256 as u16,
+//             Kdf::HkdfSha384 => KdfId::HkdfSha384 as u16,
+//             Kdf::HkdfSha512 => KdfId::HkdfSha512 as u16,
+//             // Map other cases as needed
+//         }
+//     }
+
+//     async fn expand(&self, prk: &[u8], info: &[u8], len: usize) -> Result<Vec<u8>, Self::Error> {
+//         let sym_key = Hkdf::import_ikm(prk)?; // Ensure this is async or wrapped in an async block
+//         self.expand_data(&sym_key, info, len).await
+//     }
+
+//     async fn extract(&self, salt: &[u8], ikm: &[u8]) -> Result<Vec<u8>, Self::Error> {
+//         let sym_key = Hkdf::import_ikm(ikm)?; // Ensure this is async or wrapped in an async block
+//         let prk = self.extract(salt, &sym_key).await?; // This needs to return Vec<u8> instead of SymKey
+//         prk.key_data() // Assuming `key_data` returns `Result<Vec<u8>, Self::Error>`
+//     }
+
+//     fn extract_size(&self) -> usize {
+//         self.kdf.extract_size()
+//     }
+// }
+
 #[cfg(all(test, not(mls_build_async)))]
 mod test {
     use assert_matches::assert_matches;
