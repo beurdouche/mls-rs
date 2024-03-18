@@ -64,6 +64,9 @@ impl KdfType for Kdf {
         if prk.len() < self.extract_size() {
             return Err(KdfError::TooShortKey(prk.len(), self.extract_size()));
         }
+
+        nss_gk::init();
+
         let alg = match self.0 {
             KdfId::HkdfSha256 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_256),
             KdfId::HkdfSha384 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_384),
@@ -82,11 +85,11 @@ impl KdfType for Kdf {
     }
 
     async fn extract(&self, salt: &[u8], ikm: &[u8]) -> Result<Vec<u8>, KdfError> {
-        nss_gk::init();
-
         if ikm.is_empty() {
             return Err(KdfError::TooShortKey(0, 1));
         }
+
+        nss_gk::init();
 
         let alg = match self.0 {
             KdfId::HkdfSha256 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_256),
