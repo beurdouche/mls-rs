@@ -2,7 +2,7 @@
 name = "mls-rs-crypto-nss"
 version = "0.1.0"
 edition = "2021"
-description = "RustCrypto based CryptoProvider for mls-rs"
+description = "NSS based CryptoProvider for mls-rs"
 homepage = "https://github.com/awslabs/mls-rs"
 repository = "https://github.com/awslabs/mls-rs"
 keywords = ["mls", "mls-rs"]
@@ -20,9 +20,6 @@ std = [
     "getrandom/std",
     "rand_core/std",
     "aead/std",
-    "sha2/std",
-    "hmac/std",
-    # "hkdf/std",
     "p256/std",
     "sec1/std",
     "dep:thiserror"
@@ -32,7 +29,7 @@ std = [
 mls-rs-core = { path = "../mls-rs-core", default-features = false, version = "0.17.0" }
 mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.8.0" }
 mls-rs-crypto-traits = { path = "../mls-rs-crypto-traits", default-features = false, version = "0.9.0" }
-nss_gk = { path = "../../mozilla/nss_gk", version = "0.3.0"}
+nss_gk = { git = "https://github.com/beurdouche/nss-gk-api", rev = "503931aed0967ce5379b30b7c5b8db525d07e82d" }
 
 thiserror = { version = "1.0.40", optional = true }
 zeroize = { version = "1", default-features = false, features = ["alloc", "zeroize_derive"] }
@@ -45,12 +42,6 @@ rand_core = { version = "0.6", default-features = false, features = ["alloc"] }
 aes-gcm = { version = "0.10", features = ["zeroize"] }
 chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc", "getrandom"] }
 aead = { version = "0.5", default-features = false, features = ["alloc", "getrandom"] }
-
-# Hash
-sha2 = { version = "0.10", default-features = false }
-
-hmac = { version = "0.12", default-features = false, features = ["reset"] }
-hkdf = { version = "0.12", default-features = false }
 
 # KEM
 p256 = { version = "0.13", default-features = false, features = ["alloc", "ecdh", "ecdsa", "pem"] }

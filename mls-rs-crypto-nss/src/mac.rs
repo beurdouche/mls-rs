@@ -2,20 +2,9 @@
 // Copyright by contributors to this project.
 // SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-extern crate hmac as nss_hmac;
-extern crate sha2 as nss_sha2;
-
 use alloc::vec::Vec;
 use mls_rs_core::crypto::CipherSuite;
-
-use nss_hmac::Mac;
-use nss_sha2::Digest;
-
-// use nss_hmac::{
-//     digest::{crypto_common::BlockSizeUser, FixedOutputReset},
-//     SimpleHmac,
-// };
-// use nss_sha2::{Sha256, Sha384, Sha512};
+use nss_gk::hmac;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
@@ -24,6 +13,8 @@ pub enum HashError {
     InvalidHmacLength,
     #[cfg_attr(feature = "std", error("unsupported cipher suite"))]
     UnsupportedCipherSuite,
+    #[cfg_attr(feature = "std", error("internal error"))]
+    InternalError,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -50,40 +41,23 @@ impl Hash {
 
     pub fn hash(&self, data: &[u8]) -> Vec<u8> {
         match self {
-            Hash::Sha256 => nss_sha2::Sha256::digest(data).to_vec(),
-            Hash::Sha384 => nss_sha2::Sha384::digest(data).to_vec(),
-            Hash::Sha512 => nss_sha2::Sha512::digest(data).to_vec(),
+            Hash::Sha256 => nss_gk::hash::hash(nss_gk::hash::HashAlgorithm::SHA2_256, data)
+                .expect("InternalError"),
+            Hash::Sha384 => nss_gk::hash::hash(nss_gk::hash::HashAlgorithm::SHA2_384, data)
+                .expect("InternalError"),
+            Hash::Sha512 => nss_gk::hash::hash(nss_gk::hash::HashAlgorithm::SHA2_512, data)
+                .expect("InternalError"),
         }
     }
 
     pub fn mac(&self, key: &[u8], data: &[u8]) -> Result<Vec<u8>, HashError> {
         match self {
-            Hash::Sha256 => generic_generate_tag(
-                nss_hmac::SimpleHmac::<nss_sha2::Sha256>::new_from_slice(key)
-                    .map_err(|_| HashError::InvalidHmacLength)?,
-                data,
-            ),
-            Hash::Sha384 => generic_generate_tag(
-                nss_hmac::SimpleHmac::<nss_sha2::Sha384>::new_from_slice(key)
-                    .map_err(|_| HashError::InvalidHmacLength)?,
-                data,
-            ),
-            Hash::Sha512 => generic_generate_tag(
-                nss_hmac::SimpleHmac::<nss_sha2::Sha512>::new_from_slice(key)
-                    .map_err(|_| HashError::InvalidHmacLength)?,
-                data,
-            ),
+            Hash::Sha256 => Ok(hmac::hmac(&hmac::HmacAlgorithm::HMAC_SHA2_256, key, data)
+                .map_err(|_| HashError::InternalError)?),
+            Hash::Sha384 => Ok(hmac::hmac(&hmac::HmacAlgorithm::HMAC_SHA2_384, key, data)
+                .map_err(|_| HashError::InternalError)?),
+            Hash::Sha512 => Ok(hmac::hmac(&hmac::HmacAlgorithm::HMAC_SHA2_512, key, data)
+                .map_err(|_| HashError::InternalError)?),
         }
     }
-}
-
-fn generic_generate_tag<
-    D: nss_sha2::Digest + hmac::digest::crypto_common::BlockSizeUser + hmac::digest::FixedOutputReset,
->(
-    mut hmac: nss_hmac::SimpleHmac<D>,
-    data: &[u8],
-) -> Result<Vec<u8>, HashError> {
-    hmac.update(data);
-    let res = hmac.finalize().into_bytes().to_vec();
-    Ok(res)
 }

@@ -45,7 +45,7 @@ use alloc::vec::Vec;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
-pub enum RustCryptoError {
+pub enum NssCryptoError {
     #[cfg_attr(feature = "std", error(transparent))]
     AeadError(AnyError),
     #[cfg_attr(feature = "std", error(transparent))]
@@ -60,31 +60,31 @@ pub enum RustCryptoError {
     EcSignerError(EcSignerError),
 }
 
-impl From<rand_core::Error> for RustCryptoError {
+impl From<rand_core::Error> for NssCryptoError {
     fn from(value: rand_core::Error) -> Self {
-        RustCryptoError::RandError(value)
+        NssCryptoError::RandError(value)
     }
 }
 
-impl From<HpkeError> for RustCryptoError {
+impl From<HpkeError> for NssCryptoError {
     fn from(e: HpkeError) -> Self {
-        RustCryptoError::HpkeError(e)
+        NssCryptoError::HpkeError(e)
     }
 }
 
-impl From<HashError> for RustCryptoError {
+impl From<HashError> for NssCryptoError {
     fn from(e: HashError) -> Self {
-        RustCryptoError::HashError(e)
+        NssCryptoError::HashError(e)
     }
 }
 
-impl From<EcSignerError> for RustCryptoError {
+impl From<EcSignerError> for NssCryptoError {
     fn from(e: EcSignerError) -> Self {
-        RustCryptoError::EcSignerError(e)
+        NssCryptoError::EcSignerError(e)
     }
 }
 
-impl IntoAnyError for RustCryptoError {
+impl IntoAnyError for NssCryptoError {
     #[cfg(feature = "std")]
     fn into_dyn_error(self) -> Result<Box<dyn std::error::Error + Send + Sync>, Self> {
         Ok(self.into())
@@ -93,11 +93,11 @@ impl IntoAnyError for RustCryptoError {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct RustCryptoProvider {
+pub struct NssCryptoProvider {
     pub enabled_cipher_suites: Vec<CipherSuite>,
 }
 
-impl RustCryptoProvider {
+impl NssCryptoProvider {
     pub fn new() -> Self {
         Self::default()
     }
@@ -117,7 +117,7 @@ impl RustCryptoProvider {
     }
 }
 
-impl Default for RustCryptoProvider {
+impl Default for NssCryptoProvider {
     fn default() -> Self {
         Self {
             enabled_cipher_suites: Self::all_supported_cipher_suites(),
@@ -125,8 +125,8 @@ impl Default for RustCryptoProvider {
     }
 }
 
-impl CryptoProvider for RustCryptoProvider {
-    type CipherSuiteProvider = RustCryptoCipherSuite<DhKem<Ecdh, Kdf>, Kdf, Aead>;
+impl CryptoProvider for NssCryptoProvider {
+    type CipherSuiteProvider = NssCryptoCipherSuite<DhKem<Ecdh, Kdf>, Kdf, Aead>;
 
     fn supported_cipher_suites(&self) -> Vec<CipherSuite> {
         self.enabled_cipher_suites.clone()
@@ -146,12 +146,12 @@ impl CryptoProvider for RustCryptoProvider {
         let kem = DhKem::new(ecdh, kdf, kem_id as u16, kem_id.n_secret());
         let aead = Aead::new(cipher_suite)?;
 
-        RustCryptoCipherSuite::new(cipher_suite, kem, kdf, aead)
+        NssCryptoCipherSuite::new(cipher_suite, kem, kdf, aead)
     }
 }
 
 #[derive(Clone)]
-pub struct RustCryptoCipherSuite<KEM, KDF, AEAD>
+pub struct NssCryptoCipherSuite<KEM, KDF, AEAD>
 where
     KEM: KemType + Clone,
     KDF: KdfType + Clone,
@@ -165,7 +165,7 @@ where
     ec_signer: EcSigner,
 }
 
-impl<KEM, KDF, AEAD> RustCryptoCipherSuite<KEM, KDF, AEAD>
+impl<KEM, KDF, AEAD> NssCryptoCipherSuite<KEM, KDF, AEAD>
 where
     KEM: KemType + Clone,
     KDF: KdfType + Clone,
@@ -184,7 +184,7 @@ where
         })
     }
 
-    pub fn random_bytes(&self, out: &mut [u8]) -> Result<(), RustCryptoError> {
+    pub fn random_bytes(&self, out: &mut [u8]) -> Result<(), NssCryptoError> {
         OsRng.try_fill_bytes(out).map_err(Into::into)
     }
 }
@@ -195,13 +195,13 @@ where
     all(not(target_arch = "wasm32"), mls_build_async),
     maybe_async::must_be_async
 )]
-impl<KEM, KDF, AEAD> CipherSuiteProvider for RustCryptoCipherSuite<KEM, KDF, AEAD>
+impl<KEM, KDF, AEAD> CipherSuiteProvider for NssCryptoCipherSuite<KEM, KDF, AEAD>
 where
     KEM: KemType + Clone + Send + Sync,
     KDF: KdfType + Clone + Send + Sync,
     AEAD: AeadType + Clone + Send + Sync,
 {
-    type Error = RustCryptoError;
+    type Error = NssCryptoError;
     // TODO exporter_secret in this struct is not zeroized
     type HpkeContextR = ContextR<KDF, AEAD>;
     type HpkeContextS = ContextS<KDF, AEAD>;
@@ -224,7 +224,7 @@ where
         self.aead
             .seal(key, data, aad, nonce)
             .await
-            .map_err(|e| RustCryptoError::AeadError(e.into_any_error()))
+            .map_err(|e| NssCryptoError::AeadError(e.into_any_error()))
     }
 
     async fn aead_open(
@@ -237,7 +237,7 @@ where
         self.aead
             .open(key, cipher_text, aad, nonce)
             .await
-            .map_err(|e| RustCryptoError::AeadError(e.into_any_error()))
+            .map_err(|e| NssCryptoError::AeadError(e.into_any_error()))
             .map(Zeroizing::new)
     }
 
@@ -258,7 +258,7 @@ where
         self.kdf
             .expand(prk, info, len)
             .await
-            .map_err(|e| RustCryptoError::KdfError(e.into_any_error()))
+            .map_err(|e| NssCryptoError::KdfError(e.into_any_error()))
             .map(Zeroizing::new)
     }
 
@@ -270,7 +270,7 @@ where
         self.kdf
             .extract(salt, ikm)
             .await
-            .map_err(|e| RustCryptoError::KdfError(e.into_any_error()))
+            .map_err(|e| NssCryptoError::KdfError(e.into_any_error()))
             .map(Zeroizing::new)
     }
 
@@ -377,10 +377,10 @@ where
 #[cfg(not(mls_build_async))]
 #[test]
 fn mls_core_tests() {
-    let provider = RustCryptoProvider::new();
+    let provider = NssCryptoProvider::new();
     mls_rs_core::crypto::test_suite::verify_tests(&provider, true);
 
-    for cs in RustCryptoProvider::all_supported_cipher_suites() {
+    for cs in NssCryptoProvider::all_supported_cipher_suites() {
         let mut hpke = provider.cipher_suite_provider(cs).unwrap().hpke;
 
         mls_rs_core::crypto::test_suite::verify_hpke_context_tests(&hpke, cs);

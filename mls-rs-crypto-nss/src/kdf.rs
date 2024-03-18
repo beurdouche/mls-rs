@@ -4,43 +4,34 @@
 
 use core::fmt::Debug;
 
-extern crate hkdf as nss_hkdf;
-extern crate sha2 as nss_sha2;
-
 use mls_rs_core::{crypto::CipherSuite, error::IntoAnyError};
 use mls_rs_crypto_traits::{KdfId, KdfType};
 
-// use nss_hkdf::SimpleHkdf;
-// use nss_sha2::{Sha256, Sha384, Sha512};
-
-use alloc::vec;
 use alloc::vec::Vec;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 pub enum KdfError {
-    #[cfg_attr(feature = "std", error("invalid prk length"))]
-    InvalidPrkLength,
-    #[cfg_attr(feature = "std", error("invalid length"))]
-    InvalidLength,
+    // #[cfg_attr(feature = "std", error("invalid prk length"))]
+    // InvalidPrkLength,
+    // #[cfg_attr(feature = "std", error("invalid length"))]
+    // InvalidLength,
     #[cfg_attr(
         feature = "std",
         error("the provided length of the key {0} is shorter than the minimum length {1}")
     )]
     TooShortKey(usize, usize),
+    #[cfg_attr(feature = "std", error("invalid input"))]
+    InvalidInput,
+    #[cfg_attr(feature = "std", error("internal error"))]
+    InternalError,
     #[cfg_attr(feature = "std", error("unsupported cipher suite"))]
     UnsupportedCipherSuite,
 }
 
-impl From<hkdf::InvalidPrkLength> for KdfError {
-    fn from(_value: hkdf::InvalidPrkLength) -> Self {
-        KdfError::InvalidPrkLength
-    }
-}
-
-impl From<hkdf::InvalidLength> for KdfError {
-    fn from(_value: hkdf::InvalidLength) -> Self {
-        KdfError::InvalidLength
+impl From<nss_gk::hkdf::HkdfError> for KdfError {
+    fn from(_value: nss_gk::hkdf::HkdfError) -> Self {
+        KdfError::InvalidInput
     }
 }
 
@@ -73,47 +64,44 @@ impl KdfType for Kdf {
         if prk.len() < self.extract_size() {
             return Err(KdfError::TooShortKey(prk.len(), self.extract_size()));
         }
-
-        let mut buf = vec![0u8; len];
-
-        match self.0 {
-            KdfId::HkdfSha256 => {
-                Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha256>::from_prk(prk)?
-                    .expand(info, &mut buf)?)
-            }
-            KdfId::HkdfSha384 => {
-                Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha384>::from_prk(prk)?
-                    .expand(info, &mut buf)?)
-            }
-            KdfId::HkdfSha512 => {
-                Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha512>::from_prk(prk)?
-                    .expand(info, &mut buf)?)
-            }
+        let alg = match self.0 {
+            KdfId::HkdfSha256 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_256),
+            KdfId::HkdfSha384 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_384),
+            KdfId::HkdfSha512 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_512),
             _ => Err(KdfError::UnsupportedCipherSuite),
         }?;
 
-        Ok(buf)
+        let hkdf = nss_gk::hkdf::Hkdf::new(alg);
+        let prk_symkey = hkdf.import_secret(prk).unwrap();
+
+        // Expand
+        let r = hkdf
+            .expand_data(&prk_symkey, info, len)
+            .expect("HkdfError::InternalError");
+        Ok(r)
     }
 
     async fn extract(&self, salt: &[u8], ikm: &[u8]) -> Result<Vec<u8>, KdfError> {
+        nss_gk::init();
+
         if ikm.is_empty() {
             return Err(KdfError::TooShortKey(0, 1));
         }
 
-        let salt = if salt.is_empty() { None } else { Some(salt) };
-
-        match self.0 {
-            KdfId::HkdfSha256 => Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha256>::extract(salt, ikm)
-                .0
-                .to_vec()),
-            KdfId::HkdfSha384 => Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha384>::extract(salt, ikm)
-                .0
-                .to_vec()),
-            KdfId::HkdfSha512 => Ok(nss_hkdf::SimpleHkdf::<nss_sha2::Sha512>::extract(salt, ikm)
-                .0
-                .to_vec()),
+        let alg = match self.0 {
+            KdfId::HkdfSha256 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_256),
+            KdfId::HkdfSha384 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_384),
+            KdfId::HkdfSha512 => Ok(nss_gk::hkdf::HkdfAlgorithm::HKDF_SHA2_512),
             _ => Err(KdfError::UnsupportedCipherSuite),
-        }
+        }?;
+
+        let hkdf = nss_gk::hkdf::Hkdf::new(alg);
+        let ikm_symkey = hkdf.import_secret(ikm).unwrap();
+
+        // Extract
+        let prk = hkdf.extract(salt, &ikm_symkey).unwrap();
+        let prk_data = prk.key_data().unwrap();
+        Ok(prk_data.to_vec())
     }
 
     fn extract_size(&self) -> usize {
@@ -124,35 +112,6 @@ impl KdfType for Kdf {
         self.0 as u16
     }
 }
-
-// #[async_trait::async_trait]
-// impl KdfType for Hkdf {
-//     type Error = crate::Error; // Adapt this to your actual error type
-
-//     fn kdf_id(&self) -> u16 {
-//         match self.kdf {
-//             Kdf::HkdfSha256 => KdfId::HkdfSha256 as u16,
-//             Kdf::HkdfSha384 => KdfId::HkdfSha384 as u16,
-//             Kdf::HkdfSha512 => KdfId::HkdfSha512 as u16,
-//             // Map other cases as needed
-//         }
-//     }
-
-//     async fn expand(&self, prk: &[u8], info: &[u8], len: usize) -> Result<Vec<u8>, Self::Error> {
-//         let sym_key = Hkdf::import_ikm(prk)?; // Ensure this is async or wrapped in an async block
-//         self.expand_data(&sym_key, info, len).await
-//     }
-
-//     async fn extract(&self, salt: &[u8], ikm: &[u8]) -> Result<Vec<u8>, Self::Error> {
-//         let sym_key = Hkdf::import_ikm(ikm)?; // Ensure this is async or wrapped in an async block
-//         let prk = self.extract(salt, &sym_key).await?; // This needs to return Vec<u8> instead of SymKey
-//         prk.key_data() // Assuming `key_data` returns `Result<Vec<u8>, Self::Error>`
-//     }
-
-//     fn extract_size(&self) -> usize {
-//         self.kdf.extract_size()
-//     }
-// }
 
 #[cfg(all(test, not(mls_build_async)))]
 mod test {
