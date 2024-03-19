@@ -4,7 +4,7 @@
 
 use alloc::vec::Vec;
 use mls_rs_core::crypto::CipherSuite;
-use nss_gk::hmac;
+use nss_gk_api::hmac;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
@@ -41,11 +41,11 @@ impl Hash {
 
     pub fn hash(&self, data: &[u8]) -> Vec<u8> {
         match self {
-            Hash::Sha256 => nss_gk::hash::hash(nss_gk::hash::HashAlgorithm::SHA2_256, data)
+            Hash::Sha256 => nss_gk_api::hash::hash(nss_gk_api::hash::HashAlgorithm::SHA2_256, data)
                 .expect("InternalError"),
-            Hash::Sha384 => nss_gk::hash::hash(nss_gk::hash::HashAlgorithm::SHA2_384, data)
+            Hash::Sha384 => nss_gk_api::hash::hash(nss_gk_api::hash::HashAlgorithm::SHA2_384, data)
                 .expect("InternalError"),
-            Hash::Sha512 => nss_gk::hash::hash(nss_gk::hash::HashAlgorithm::SHA2_512, data)
+            Hash::Sha512 => nss_gk_api::hash::hash(nss_gk_api::hash::HashAlgorithm::SHA2_512, data)
                 .expect("InternalError"),
         }
     }
