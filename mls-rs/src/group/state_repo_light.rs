@@ -48,7 +48,7 @@ where
     pub async fn write_to_storage(&mut self, group_snapshot: Snapshot) -> Result<(), MlsError> {
         let group_state = GroupState {
             data: group_snapshot.mls_encode_to_vec()?,
-            id: group_snapshot.state.context.group_id,
+            id: group_snapshot.group_state_id()?,
         };
 
         self.storage
@@ -96,12 +96,13 @@ mod tests {
         )
         .unwrap();
 
-        test_repo
-            .write_to_storage(test_snapshot(0).await)
-            .await
-            .unwrap();
+        let snapshot = test_snapshot(0).await;
+        test_repo.write_to_storage(snapshot.clone()).await.unwrap();
 
-        assert_eq!(test_repo.storage.stored_groups(), vec![TEST_GROUP])
+        assert_eq!(
+            test_repo.storage.stored_groups(),
+            vec![snapshot.group_state_id().unwrap()]
+        )
     }
 
     #[maybe_async::test(not(mls_build_async), async(mls_build_async, crate::futures_test))]

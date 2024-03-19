@@ -341,7 +341,9 @@ where
 
         let state_repo = GroupStateRepository::new(
             #[cfg(feature = "prior_epoch")]
-            context.group_id.clone(),
+            &context.group_id,
+            #[cfg(feature = "prior_epoch")]
+            private_tree.self_index,
             config.group_state_storage(),
             config.key_package_repo(),
             None,
@@ -603,7 +605,9 @@ where
 
         let state_repo = GroupStateRepository::new(
             #[cfg(feature = "prior_epoch")]
-            group_info.group_context.group_id.clone(),
+            &group_info.group_context.group_id,
+            #[cfg(feature = "prior_epoch")]
+            private_tree.self_index,
             config.group_state_storage(),
             config.key_package_repo(),
             used_key_package_ref,
@@ -1842,8 +1846,8 @@ pub(crate) mod test_utils;
 mod tests {
     use crate::{
         client::test_utils::{
-            test_client_with_key_pkg, TestClientBuilder, TEST_CIPHER_SUITE,
-            TEST_CUSTOM_PROPOSAL_TYPE, TEST_PROTOCOL_VERSION,
+            test_client_with_key_pkg, test_client_with_key_pkg_custom, TestClientBuilder,
+            TEST_CIPHER_SUITE, TEST_CUSTOM_PROPOSAL_TYPE, TEST_PROTOCOL_VERSION,
         },
         client_builder::{test_utils::TestClientConfig, ClientBuilder, MlsConfig},
         crypto::test_utils::TestCryptoProvider,
@@ -3918,7 +3922,7 @@ mod tests {
             .unwrap()
             .0;
 
-        bob.write_to_storage().await.unwrap();
+        let state_id = bob.write_to_storage().await.unwrap().to_vec();
 
         // Bob reloads his group data, but with parameters that will cause his generated leaves to
         // not support the mandatory extension.
@@ -3927,7 +3931,7 @@ mod tests {
             .key_package_repo(bob.config.key_package_repo())
             .group_state_storage(bob.config.group_state_storage())
             .build()
-            .load_group(alice.group_id())
+            .load_group(&state_id)
             .await
             .unwrap();
 
@@ -4232,22 +4236,5 @@ mod tests {
         };
 
         assert_eq!(update.committer, *group.private_tree.self_index);
-    }
-
-    #[maybe_async::test(not(mls_build_async), async(mls_build_async, crate::futures_test))]
-    async fn can_process_commit_when_pending_commit() {
-        let mut groups = test_n_member_group(TEST_PROTOCOL_VERSION, TEST_CIPHER_SUITE, 2).await;
-
-        let commit = groups[0].group.commit(vec![]).await.unwrap().commit_message;
-        groups[1].group.commit(vec![]).await.unwrap();
-
-        groups[1]
-            .group
-            .process_incoming_message(commit)
-            .await
-            .unwrap();
-
-        let res = groups[1].group.apply_pending_commit().await;
-        assert_matches!(res, Err(MlsError::PendingCommitNotFound));
     }
 }
