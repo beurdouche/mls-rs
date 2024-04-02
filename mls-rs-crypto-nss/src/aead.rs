@@ -68,6 +68,7 @@ impl AeadType for Aead {
         aad: Option<&'a [u8]>,
         nonce: &[u8],
     ) -> Result<Vec<u8>, AeadError> {
+        nss_gk_api::init();
         let mode = nss_gk_api::aead::Mode::Encrypt;
 
         (!data.is_empty())
@@ -136,6 +137,7 @@ impl AeadType for Aead {
         aad: Option<&'a [u8]>,
         nonce: &[u8],
     ) -> Result<Vec<u8>, AeadError> {
+        nss_gk_api::init();
         let mode = nss_gk_api::aead::Mode::Decrypt;
 
         (ciphertext.len() > AES_TAG_LEN)
