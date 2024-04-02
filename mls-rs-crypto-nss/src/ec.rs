@@ -336,13 +336,6 @@ pub(crate) mod test_utils {
 
         false
     }
-
-    #[cfg(feature = "x509")]
-    pub fn ed25519_seed_to_private_key(seed: &[u8]) -> Vec<u8> {
-        let secret = ed25519_dalek::SecretKey::try_from(seed).unwrap();
-        let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret);
-        signing_key.to_keypair_bytes().to_vec()
-    }
 }
 
 #[cfg(test)]
