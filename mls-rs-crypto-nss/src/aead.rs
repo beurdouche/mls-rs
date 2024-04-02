@@ -2,27 +2,18 @@
 // Copyright by contributors to this project.
 // SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-extern crate aead as nss_aead;
-extern crate aes_gcm as nss_aes_gcm;
-extern crate chacha20poly1305 as nss_chacha20poly1305;
-
 use core::fmt::Debug;
 
 use mls_rs_core::{crypto::CipherSuite, error::IntoAnyError};
 use mls_rs_crypto_traits::{AeadId, AeadType, AES_TAG_LEN};
-
-use nss_aes_gcm::KeyInit;
-// use nss_aead::{generic_array::GenericArray, Payload};
-// use nss_aes_gcm::{Aes128Gcm, Aes256Gcm};
-// use nss_chacha20poly1305::ChaCha20Poly1305;
 
 use alloc::vec::Vec;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 pub enum AeadError {
-    #[cfg_attr(feature = "std", error("Rc AEAD Error"))]
-    RcAeadError(nss_aead::Error),
+    #[cfg_attr(feature = "std", error("NSS Error"))]
+    NssError(nss_gk_api::Error),
     #[cfg_attr(
         feature = "std",
         error("AEAD ciphertext of length {0} is too short to fit the tag")
@@ -39,9 +30,9 @@ pub enum AeadError {
     UnsupportedCipherSuite,
 }
 
-impl From<nss_aead::Error> for AeadError {
-    fn from(value: nss_aead::Error) -> Self {
-        AeadError::RcAeadError(value)
+impl From<nss_gk_api::Error> for AeadError {
+    fn from(value: nss_gk_api::Error) -> Self {
+        AeadError::NssError(value)
     }
 }
 
@@ -77,6 +68,8 @@ impl AeadType for Aead {
         aad: Option<&'a [u8]>,
         nonce: &[u8],
     ) -> Result<Vec<u8>, AeadError> {
+        let mode = nss_gk_api::aead::Mode::Encrypt;
+
         (!data.is_empty())
             .then_some(())
             .ok_or(AeadError::EmptyPlaintext)?;
@@ -87,22 +80,49 @@ impl AeadType for Aead {
 
         match self.0 {
             AeadId::Aes128Gcm => {
-                let cipher = nss_aes_gcm::Aes128Gcm::new(
-                    nss_aead::generic_array::GenericArray::from_slice(key),
-                );
-                encrypt_aead_trait(cipher, data, aad, nonce)
+                let alg = nss_gk_api::aead::AeadAlgorithms::Aes128Gcm;
+                let key = nss_gk_api::aead::Aead::import_key(alg, key)?;
+                let nonce_array: [u8; 12] =
+                    nonce.try_into().expect("Nonce must be exactly 12 bytes");
+                let aad_array = aad.unwrap_or(&[0; 0]);
+
+                let mut cipher = nss_gk_api::aead::Aead::new(mode, alg, &key, nonce_array)?;
+
+                let ciphertext = cipher
+                    .seal(aad_array, data)
+                    .map_err(|_| AeadError::NssError(nss_gk_api::Error::AeadError))?;
+
+                Ok(ciphertext)
             }
             AeadId::Aes256Gcm => {
-                let cipher = nss_aes_gcm::Aes256Gcm::new(
-                    nss_aead::generic_array::GenericArray::from_slice(key),
-                );
-                encrypt_aead_trait(cipher, data, aad, nonce)
+                let alg = nss_gk_api::aead::AeadAlgorithms::Aes256Gcm;
+                let key = nss_gk_api::aead::Aead::import_key(alg, key)?;
+                let nonce_array: [u8; 12] =
+                    nonce.try_into().expect("Nonce must be exactly 12 bytes");
+                let aad_array = aad.unwrap_or(&[0; 0]);
+
+                let mut cipher = nss_gk_api::aead::Aead::new(mode, alg, &key, nonce_array)?;
+
+                let ciphertext = cipher
+                    .seal(aad_array, data)
+                    .map_err(|_| AeadError::NssError(nss_gk_api::Error::AeadError))?;
+
+                Ok(ciphertext)
             }
             AeadId::Chacha20Poly1305 => {
-                let cipher = nss_chacha20poly1305::ChaCha20Poly1305::new(
-                    nss_aead::generic_array::GenericArray::from_slice(key),
-                );
-                encrypt_aead_trait(cipher, data, aad, nonce)
+                let alg = nss_gk_api::aead::AeadAlgorithms::ChaCha20Poly1305;
+                let key = nss_gk_api::aead::Aead::import_key(alg, key)?;
+                let nonce_array: [u8; 12] =
+                    nonce.try_into().expect("Nonce must be exactly 12 bytes");
+                let aad_array = aad.unwrap_or(&[0; 0]);
+
+                let mut cipher = nss_gk_api::aead::Aead::new(mode, alg, &key, nonce_array)?;
+
+                let ciphertext = cipher
+                    .seal(aad_array, data)
+                    .map_err(|_| AeadError::NssError(nss_gk_api::Error::AeadError))?;
+
+                Ok(ciphertext)
             }
             _ => Err(AeadError::UnsupportedCipherSuite),
         }
@@ -116,6 +136,8 @@ impl AeadType for Aead {
         aad: Option<&'a [u8]>,
         nonce: &[u8],
     ) -> Result<Vec<u8>, AeadError> {
+        let mode = nss_gk_api::aead::Mode::Decrypt;
+
         (ciphertext.len() > AES_TAG_LEN)
             .then_some(())
             .ok_or(AeadError::InvalidCipherLen(ciphertext.len()))?;
@@ -126,22 +148,49 @@ impl AeadType for Aead {
 
         match self.0 {
             AeadId::Aes128Gcm => {
-                let cipher = nss_aes_gcm::Aes128Gcm::new(
-                    nss_aead::generic_array::GenericArray::from_slice(key),
-                );
-                decrypt_aead_trait(cipher, ciphertext, aad, nonce)
+                let alg = nss_gk_api::aead::AeadAlgorithms::Aes128Gcm;
+                let key = nss_gk_api::aead::Aead::import_key(alg, key)?;
+                let nonce_array: [u8; 12] =
+                    nonce.try_into().expect("Nonce must be exactly 12 bytes");
+                let aad_array = aad.unwrap_or(&[0; 0]);
+
+                let mut cipher = nss_gk_api::aead::Aead::new(mode, alg, &key, nonce_array)?;
+
+                let plaintext = cipher
+                    .open(aad_array, 0, ciphertext)
+                    .map_err(|_| AeadError::NssError(nss_gk_api::Error::AeadError))?;
+
+                Ok(plaintext)
             }
             AeadId::Aes256Gcm => {
-                let cipher = nss_aes_gcm::Aes256Gcm::new(
-                    nss_aead::generic_array::GenericArray::from_slice(key),
-                );
-                decrypt_aead_trait(cipher, ciphertext, aad, nonce)
+                let alg = nss_gk_api::aead::AeadAlgorithms::Aes256Gcm;
+                let key = nss_gk_api::aead::Aead::import_key(alg, key)?;
+                let nonce_array: [u8; 12] =
+                    nonce.try_into().expect("Nonce must be exactly 12 bytes");
+                let aad_array = aad.unwrap_or(&[0; 0]);
+
+                let mut cipher = nss_gk_api::aead::Aead::new(mode, alg, &key, nonce_array)?;
+
+                let plaintext = cipher
+                    .open(aad_array, 0, ciphertext)
+                    .map_err(|_| AeadError::NssError(nss_gk_api::Error::AeadError))?;
+
+                Ok(plaintext)
             }
             AeadId::Chacha20Poly1305 => {
-                let cipher = nss_chacha20poly1305::ChaCha20Poly1305::new(
-                    nss_aead::generic_array::GenericArray::from_slice(key),
-                );
-                decrypt_aead_trait(cipher, ciphertext, aad, nonce)
+                let alg = nss_gk_api::aead::AeadAlgorithms::ChaCha20Poly1305;
+                let key = nss_gk_api::aead::Aead::import_key(alg, key)?;
+                let nonce_array: [u8; 12] =
+                    nonce.try_into().expect("Nonce must be exactly 12 bytes");
+                let aad_array = aad.unwrap_or(&[0; 0]);
+
+                let mut cipher = nss_gk_api::aead::Aead::new(mode, alg, &key, nonce_array)?;
+
+                let plaintext = cipher
+                    .open(aad_array, 0, ciphertext)
+                    .map_err(|_| AeadError::NssError(nss_gk_api::Error::AeadError))?;
+
+                Ok(plaintext)
             }
             _ => Err(AeadError::UnsupportedCipherSuite),
         }
@@ -159,40 +208,6 @@ impl AeadType for Aead {
     fn aead_id(&self) -> u16 {
         self.0 as u16
     }
-}
-
-fn encrypt_aead_trait(
-    cipher: impl nss_aead::Aead,
-    data: &[u8],
-    aad: Option<&[u8]>,
-    nonce: &[u8],
-) -> Result<Vec<u8>, AeadError> {
-    let payload = nss_aead::Payload {
-        msg: data,
-        aad: aad.unwrap_or_default(),
-    };
-
-    Ok(cipher.encrypt(
-        nss_aead::generic_array::GenericArray::from_slice(nonce),
-        payload,
-    )?)
-}
-
-fn decrypt_aead_trait(
-    cipher: impl nss_aead::Aead,
-    ciphertext: &[u8],
-    aad: Option<&[u8]>,
-    nonce: &[u8],
-) -> Result<Vec<u8>, AeadError> {
-    let payload = nss_aead::Payload {
-        msg: ciphertext,
-        aad: aad.unwrap_or_default(),
-    };
-
-    Ok(cipher.decrypt(
-        nss_aead::generic_array::GenericArray::from_slice(nonce),
-        payload,
-    )?)
 }
 
 #[cfg(all(not(mls_build_async), test))]
@@ -265,12 +280,12 @@ mod test {
 
             assert_matches!(
                 aead.open(&key, &ciphertext, Some(b"bar"), &nonce),
-                Err(AeadError::RcAeadError(_))
+                Err(AeadError::NssError(_))
             );
 
             assert_matches!(
                 aead.open(&key, &ciphertext, None, &nonce),
-                Err(AeadError::RcAeadError(_))
+                Err(AeadError::NssError(_))
             );
         }
     }

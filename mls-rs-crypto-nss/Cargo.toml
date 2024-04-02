@@ -20,7 +20,7 @@ std = [
     "mls-rs-crypto-traits/std",
     "getrandom/std",
     "rand_core/std",
-    "aead/std",
+    # "aead/std",
     "p256/std",
     "sec1/std",
     "dep:thiserror"
@@ -30,7 +30,8 @@ std = [
 mls-rs-core = { path = "../mls-rs-core", default-features = false, version = "0.17.0" }
 mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.8.0" }
 mls-rs-crypto-traits = { path = "../mls-rs-crypto-traits", default-features = false, version = "0.9.0" }
-nss-gk-api = { git = "https://github.com/beurdouche/nss-gk-api", rev = "6d41fad5837a1841c2ed5d008466b32ef42c73f0", default-features = false}
+nss-gk-api = { path = "/opt/mozilla/nss-gk-api", default-features = false}
+# nss-gk-api = { git = "https://github.com/beurdouche/nss-gk-api", rev = "6d41fad5837a1841c2ed5d008466b32ef42c73f0", default-features = false}
 
 thiserror = { version = "1.0.40", optional = true }
 zeroize = { version = "1", default-features = false, features = ["alloc", "zeroize_derive"] }
@@ -40,9 +41,9 @@ getrandom = { version = "0.2", default-features = false, features = ["custom"] }
 rand_core = { version = "0.6", default-features = false, features = ["alloc"] }
 
 # AEAD
-aes-gcm = { version = "0.10", features = ["zeroize"] }
-chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc", "getrandom"] }
-aead = { version = "0.5", default-features = false, features = ["alloc", "getrandom"] }
+# aes-gcm = { version = "0.10", features = ["zeroize"] }
+# chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc", "getrandom"] }
+# aead = { version = "0.5", default-features = false, features = ["alloc", "getrandom"] }
 
 # KEM
 p256 = { version = "0.13", default-features = false, features = ["alloc", "ecdh", "ecdsa", "pem"] }
