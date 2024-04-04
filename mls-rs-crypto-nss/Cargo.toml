@@ -27,7 +27,7 @@ mls-rs-core = { path = "../mls-rs-core", default-features = false, version = "0.
 mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.9.0" }
 mls-rs-crypto-traits = { path = "../mls-rs-crypto-traits", default-features = false, version = "0.10.0" }
 # nss-gk-api = { path = "/opt/mozilla/nss-gk-api", default-features = false}
-nss-gk-api = { git = "https://github.com/beurdouche/nss-gk-api", rev = "5d2e4078eae67c5eeff70e9db208e8f7ca2ef1cf=", default-features = false}
+nss-gk-api = { git = "https://github.com/beurdouche/nss-gk-api", rev = "5d2e4078eae67c5eeff70e9db208e8f7ca2ef1cf", default-features = false}
 
 thiserror = { version = "1.0.40", optional = true }
 zeroize = { version = "1", default-features = false, features = ["alloc", "zeroize_derive"] }
