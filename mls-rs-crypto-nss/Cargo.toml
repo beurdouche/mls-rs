@@ -24,10 +24,10 @@ std = [
 
 [dependencies]
 mls-rs-core = { path = "../mls-rs-core", default-features = false, version = "0.18.0" }
-mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.8.0" }
-mls-rs-crypto-traits = { path = "../mls-rs-crypto-traits", default-features = false, version = "0.9.0" }
-nss-gk-api = { path = "/opt/mozilla/nss-gk-api", default-features = false}
-# nss-gk-api = { git = "https://github.com/beurdouche/nss-gk-api", rev = "6d41fad5837a1841c2ed5d008466b32ef42c73f0", default-features = false}
+mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.9.0" }
+mls-rs-crypto-traits = { path = "../mls-rs-crypto-traits", default-features = false, version = "0.10.0" }
+# nss-gk-api = { path = "/opt/mozilla/nss-gk-api", default-features = false}
+nss-gk-api = { git = "https://github.com/beurdouche/nss-gk-api", rev = "5d2e4078eae67c5eeff70e9db208e8f7ca2ef1cf=", default-features = false}
 
 thiserror = { version = "1.0.40", optional = true }
 zeroize = { version = "1", default-features = false, features = ["alloc", "zeroize_derive"] }
@@ -48,8 +48,8 @@ hex = { version = "^0.4.3", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "^1.0" }
 assert_matches = "1.5.0"
-mls-rs-core = { path = "../mls-rs-core", version = "0.17.0", features = ["test_suite"] }
-mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.8.0", features = ["test_utils"] }
+mls-rs-core = { path = "../mls-rs-core", version = "0.18.0", features = ["test_suite"] }
+mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.9.0", features = ["test_utils"] }
 
 [target.'cfg(mls_build_async)'.dependencies]
 async-trait = "0.1.74"
