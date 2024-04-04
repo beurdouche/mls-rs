@@ -13,12 +13,13 @@ use crate::group::{
     message_signature::AuthenticatedContent,
     proposal::{AddProposal, Proposal},
 };
-use crate::group::{ExportedTree, Group, NewMemberInfo};
+use crate::group::{snapshot::Snapshot, ExportedTree, Group, NewMemberInfo};
 use crate::identity::SigningIdentity;
 use crate::key_package::{KeyPackageGeneration, KeyPackageGenerator};
 use crate::protocol_version::ProtocolVersion;
 use crate::tree_kem::node::NodeIndex;
 use alloc::vec::Vec;
+use mls_rs_codec::MlsDecode;
 use mls_rs_core::crypto::{CryptoProvider, SignatureSecretKey};
 use mls_rs_core::error::{AnyError, IntoAnyError};
 use mls_rs_core::extension::{ExtensionError, ExtensionList, ExtensionType};
@@ -614,6 +615,8 @@ where
             .map_err(|e| MlsError::GroupStorageError(e.into_any_error()))?
             .ok_or(MlsError::GroupNotFound)?;
 
+        let snapshot = Snapshot::mls_decode(&mut &*snapshot)?;
+
         Group::from_snapshot(self.config.clone(), snapshot).await
     }
 
@@ -703,6 +706,25 @@ where
     /// Returns key package extensions used by this client
     pub fn key_package_extensions(&self) -> ExtensionList {
         self.config.key_package_extensions()
+    }
+
+    /// The [KeyPackageStorage] that this client was configured to use.
+    #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen_ignore)]
+    pub fn key_package_store(&self) -> <C as ClientConfig>::KeyPackageRepository {
+        self.config.key_package_repo()
+    }
+
+    /// The [PreSharedKeyStorage](crate::PreSharedKeyStorage) that
+    /// this client was configured to use.
+    #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen_ignore)]
+    pub fn secret_store(&self) -> <C as ClientConfig>::PskStore {
+        self.config.secret_store()
+    }
+
+    /// The [GroupStateStorage] that this client was configured to use.
+    #[cfg_attr(all(feature = "ffi", not(test)), safer_ffi_gen::safer_ffi_gen_ignore)]
+    pub fn group_state_storage(&self) -> <C as ClientConfig>::GroupStateStorage {
+        self.config.group_state_storage()
     }
 }
 

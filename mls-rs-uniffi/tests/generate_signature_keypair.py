@@ -1,4 +1,0 @@
-from mls_rs_uniffi import CipherSuite, generate_signature_keypair
-
-signature_keypair = generate_signature_keypair(CipherSuite.CURVE25519_AES128)
-assert signature_keypair.cipher_suite == CipherSuite.CURVE25519_AES128

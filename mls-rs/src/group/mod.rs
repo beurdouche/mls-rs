@@ -93,7 +93,7 @@ use self::message_processor::{EventOrContent, MessageProcessor, ProvisionalState
 #[cfg(feature = "by_ref_proposal")]
 use self::proposal_ref::ProposalRef;
 use self::state_repo::GroupStateRepository;
-pub(crate) use group_info::GroupInfo;
+pub use group_info::GroupInfo;
 
 pub use self::framing::{ContentType, Sender};
 pub use commit::*;
@@ -345,8 +345,7 @@ where
             config.group_state_storage(),
             config.key_package_repo(),
             None,
-        )
-        .await?;
+        )?;
 
         let key_schedule_result = KeySchedule::from_random_epoch_secret(
             &cipher_suite_provider,
@@ -608,8 +607,7 @@ where
             config.group_state_storage(),
             config.key_package_repo(),
             used_key_package_ref,
-        )
-        .await?;
+        )?;
 
         let group = Group {
             config,
@@ -1260,6 +1258,12 @@ where
             .ok_or(MlsError::PendingCommitNotFound)?;
 
         self.process_commit(pending_commit.content, None).await
+    }
+
+    /// Returns true if a commit has been created but not yet applied
+    /// with [`Group::apply_pending_commit`] or cleared with [`Group::clear_pending_commit`]
+    pub fn has_pending_commit(&self) -> bool {
+        self.pending_commit.is_some()
     }
 
     /// Clear the currently pending commit.
@@ -1938,6 +1942,8 @@ mod tests {
             #[cfg(feature = "by_ref_proposal")]
             assert!(group.pending_updates.is_empty());
 
+            assert!(!group.has_pending_commit());
+
             assert_eq!(
                 group.private_tree.self_index.0,
                 group.current_member_index()
@@ -1975,6 +1981,8 @@ mod tests {
 
         // We should be able to send application messages after a commit
         test_group.group.commit(vec![]).await.unwrap();
+
+        assert!(test_group.group.has_pending_commit());
 
         test_group.group.apply_pending_commit().await.unwrap();
 
