@@ -39,7 +39,7 @@ itertools = { version = "0.12", optional = true }
 serde_bytes = { version = "0.11", optional = true }
 
 [target.'cfg(mls_build_async)'.dependencies]
-async-trait = "0.1.74"
+async-trait = "^0.1"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

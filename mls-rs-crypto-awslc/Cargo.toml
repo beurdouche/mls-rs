@@ -26,4 +26,4 @@ mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", version = "0.9.0", featur
 futures-test = "0.3.25"
 
 [target.'cfg(mls_build_async)'.dependencies]
-async-trait = "0.1.74"
+async-trait = "^0.1"

@@ -25,4 +25,4 @@ mls-rs-crypto-traits = { path = "../mls-rs-crypto-traits", default-features = fa
 zeroize = { version = "1", default-features = false, features = ["alloc", "zeroize_derive"] }
 
 [target.'cfg(mls_build_async)'.dependencies]
-async-trait = "0.1.74"
+async-trait = "^0.1"

@@ -19,7 +19,7 @@ thiserror = { version = "1.0.40", optional = true }
 
 # Async mode dependencies
 [target.'cfg(mls_build_async)'.dependencies]
-async-trait = "0.1.74"
+async-trait = "^0.1"
 
 [dev-dependencies]
 mockall = "0.12"

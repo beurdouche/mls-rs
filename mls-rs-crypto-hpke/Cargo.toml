@@ -35,7 +35,7 @@ wasm-bindgen-test = { version = "0.3.26", default-features = false }
 getrandom = { version = "0.2", features = ["js"] }
 
 [target.'cfg(mls_build_async)'.dependencies]
-async-trait = "0.1.74"
+async-trait = "^0.1"
 
 [target.'cfg(mls_build_async)'.dev-dependencies]
 futures-test = "0.3.25"
