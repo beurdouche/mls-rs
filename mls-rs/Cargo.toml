@@ -79,7 +79,7 @@ hex = { version = "^0.4.3", default-features = false, features = ["serde", "allo
 # Async mode dependencies
 [target.'cfg(mls_build_async)'.dependencies]
 futures = { version = "0.3.25", default-features = false, features = ["alloc"]}
-async-trait = "0.1.74"
+async-trait = "^0.1"
 
 # [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 # portable-atomic = { version = "1.5.1", default-features = false, features = ["critical-section"] }
