@@ -2,7 +2,10 @@
 // Copyright by contributors to this project.
 // SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-use mls_rs_core::group::{EpochRecord, GroupState, GroupStateStorage};
+use mls_rs_core::{
+    group::{EpochRecord, GroupState, GroupStateStorage},
+    mls_rs_codec::MlsEncode,
+};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::{
     fmt::Debug,
@@ -18,13 +21,18 @@ pub(crate) const DEFAULT_EPOCH_RETENTION_LIMIT: u64 = 3;
 pub struct SqLiteGroupStateStorage {
     connection: Arc<Mutex<Connection>>,
     max_epoch_retention: u64,
+    state_context: Option<Vec<u8>>,
 }
 
 impl SqLiteGroupStateStorage {
-    pub(crate) fn new(connection: Connection) -> SqLiteGroupStateStorage {
+    pub(crate) fn new(
+        connection: Connection,
+        state_context: Option<Vec<u8>>,
+    ) -> SqLiteGroupStateStorage {
         SqLiteGroupStateStorage {
             connection: Arc::new(Mutex::new(connection)),
             max_epoch_retention: DEFAULT_EPOCH_RETENTION_LIMIT,
+            state_context,
         }
     }
 
@@ -32,6 +40,7 @@ impl SqLiteGroupStateStorage {
         Self {
             connection: self.connection,
             max_epoch_retention,
+            state_context: self.state_context,
         }
     }
 
@@ -59,6 +68,9 @@ impl SqLiteGroupStateStorage {
     pub fn delete_group(&self, group_id: &[u8]) -> Result<(), SqLiteDataStorageError> {
         let connection = self.connection.lock().unwrap();
 
+        let alternative_gid = self.alternative_group_id(group_id)?;
+        let group_id = alternative_gid.as_deref().unwrap_or(group_id);
+
         connection
             .execute(
                 "DELETE FROM mls_group WHERE group_id = ?",
@@ -78,6 +90,11 @@ impl SqLiteGroupStateStorage {
     ) -> Result<Option<Vec<u8>>, SqLiteDataStorageError> {
         let connection = self.connection.lock().unwrap();
 
+        let alternative_gid = self.alternative_group_id(group_id)?;
+        let group_id = alternative_gid.as_deref().unwrap_or(group_id);
+
+        println!("alternative gid get {:?}", group_id);
+
         connection
             .query_row(
                 "SELECT snapshot FROM mls_group where group_id = ?",
@@ -94,6 +111,9 @@ impl SqLiteGroupStateStorage {
         epoch_id: u64,
     ) -> Result<Option<Vec<u8>>, SqLiteDataStorageError> {
         let connection = self.connection.lock().unwrap();
+
+        let alternative_gid = self.alternative_group_id(group_id)?;
+        let group_id = alternative_gid.as_deref().unwrap_or(group_id);
 
         connection
             .query_row(
@@ -125,6 +145,13 @@ impl SqLiteGroupStateStorage {
         updates: Vec<EpochRecord>,
     ) -> Result<(), SqLiteDataStorageError> {
         let mut max_epoch_id = None;
+
+        println!("gid {:?}", group_id);
+
+        let alternative_gid = self.alternative_group_id(group_id)?;
+        let group_id = alternative_gid.as_deref().unwrap_or(group_id);
+
+        println!("alternative gid {:?}", group_id);
 
         let mut connection = self.connection.lock().unwrap();
         let transaction = connection
@@ -179,6 +206,20 @@ impl SqLiteGroupStateStorage {
         transaction
             .commit()
             .map_err(|e| SqLiteDataStorageError::SqlEngineError(e.into()))
+    }
+
+    fn alternative_group_id(
+        &self,
+        group_id: &[u8],
+    ) -> Result<Option<Vec<u8>>, SqLiteDataStorageError> {
+        self.state_context
+            .as_ref()
+            .map(|context| {
+                (context, group_id)
+                    .mls_encode_to_vec()
+                    .map_err(|e| SqLiteDataStorageError::DataConversionError(Box::new(e)))
+            })
+            .transpose()
     }
 }
 

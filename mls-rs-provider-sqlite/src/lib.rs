@@ -61,6 +61,7 @@ where
     CS: ConnectionStrategy,
 {
     connection_strategy: CS,
+    group_state_context: Option<Vec<u8>>,
 }
 
 impl<CS> SqLiteDataStorageEngine<CS>
@@ -72,7 +73,15 @@ where
     ) -> Result<SqLiteDataStorageEngine<CS>, SqLiteDataStorageError> {
         Ok(SqLiteDataStorageEngine {
             connection_strategy,
+            group_state_context: None,
         })
+    }
+
+    pub fn with_context(self, group_state_context: Vec<u8>) -> Self {
+        Self {
+            group_state_context: Some(group_state_context),
+            ..self
+        }
     }
 
     fn create_connection(&self) -> Result<Connection, SqLiteDataStorageError> {
@@ -92,7 +101,10 @@ where
 
     /// Returns a struct that implements the `GroupStateStorage` trait for use in MLS.
     pub fn group_state_storage(&self) -> Result<SqLiteGroupStateStorage, SqLiteDataStorageError> {
-        Ok(SqLiteGroupStateStorage::new(self.create_connection()?))
+        Ok(SqLiteGroupStateStorage::new(
+            self.create_connection()?,
+            self.group_state_context.clone(),
+        ))
     }
 
     /// Returns a struct that implements the `KeyPackageStorage` trait for use in MLS.
