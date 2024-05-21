@@ -93,7 +93,7 @@ impl SqLiteGroupStateStorage {
         let alternative_gid = self.alternative_group_id(group_id)?;
         let group_id = alternative_gid.as_deref().unwrap_or(group_id);
 
-        println!("alternative gid get {:?}", group_id);
+        // println!("alternative gid get {:?}", group_id);
 
         connection
             .query_row(
@@ -146,12 +146,12 @@ impl SqLiteGroupStateStorage {
     ) -> Result<(), SqLiteDataStorageError> {
         let mut max_epoch_id = None;
 
-        println!("gid {:?}", group_id);
+        // println!("gid {:?}", group_id);
 
         let alternative_gid = self.alternative_group_id(group_id)?;
         let group_id = alternative_gid.as_deref().unwrap_or(group_id);
 
-        println!("alternative gid {:?}", group_id);
+        // println!("alternative gid {:?}", group_id);
 
         let mut connection = self.connection.lock().unwrap();
         let transaction = connection
