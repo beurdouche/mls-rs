@@ -61,3 +61,48 @@ impl Hash {
         }
     }
 }
+
+mod test {
+    use core::default;
+
+    use crate::Hash;
+    use serde::Deserialize;
+    use alloc::vec::Vec;
+
+    #[derive(Deserialize)]
+    struct TestCase {
+        pub ciphersuite: u16,
+        pub hash_function: u8,
+        #[serde(with = "hex::serde")]
+        pub message: Vec<u8>,
+        #[serde(with = "hex::serde")]
+        pub hash: Vec<u8>,
+    }
+
+
+    fn run_test_case(t: TestCase)
+    {
+        let hash_fun = 
+            match t.hash_function
+            {
+                1 => Hash::Sha256,
+                2 => Hash::Sha384,
+                default => Hash::Sha256,
+            };
+        let message = t.message;
+        let hash_result = hash_fun.hash(message.as_slice());
+        assert_eq!(hash_result, t.hash);
+
+    }
+    
+    #[test]
+    fn test_algo_test_cases() {
+        let test_case_file = include_str!("../test_data/test_hash.json");
+        let test_cases: Vec<TestCase> = serde_json::from_str(test_case_file).unwrap();
+
+        for case in test_cases {
+            run_test_case(case);
+        }
+    }
+
+}
