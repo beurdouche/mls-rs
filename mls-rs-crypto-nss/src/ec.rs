@@ -8,6 +8,8 @@
 extern crate ed25519_dalek as nss_ed25519;
 extern crate p256 as nss_p256;
 
+use nss_gk_api::ec;
+
 use nss_ed25519::Signer;
 use nss_p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
 
