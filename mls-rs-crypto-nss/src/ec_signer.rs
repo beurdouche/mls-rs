@@ -73,7 +73,8 @@ impl EcSigner {
         match secret_key {
             EcPrivateKey::X25519(_) => Err(EcSignerError::EcKeyNotSignature),
             EcPrivateKey::Ed25519(private_key) => Ok(sign_ed25519(&private_key, data)?),
-            EcPrivateKey::P256(private_key) => Ok(sign_p256(&private_key, data)?),
+            default => Err(EcSignerError::EcKeyNotSignature),
+            // EcPrivateKey::P256(private_key) => Ok(sign_p256(&private_key, data)?),
         }
     }
 
@@ -88,7 +89,8 @@ impl EcSigner {
         let ver = match public_key {
             EcPublicKey::X25519(_) => Err(EcSignerError::EcKeyNotSignature),
             EcPublicKey::Ed25519(key) => Ok(verify_ed25519(&key, signature, data)?),
-            EcPublicKey::P256(key) => Ok(verify_p256(&key, signature, data)?),
+            // EcPublicKey::P256(key) => Ok(verify_p256(&key, signature, data)?),
+            EcPublicKey::P256(_) => Err(EcSignerError::EcKeyNotSignature),
         }?;
 
         ver.then_some(()).ok_or(EcSignerError::InvalidSignature)
