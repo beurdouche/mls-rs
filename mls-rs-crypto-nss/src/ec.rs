@@ -8,7 +8,7 @@
 extern crate ed25519_dalek as nss_ed25519;
 extern crate p256 as nss_p256;
 
-use nss_gk_api::{ec, PrivateKey};
+use nss_gk_api::{ec, err::Res, PrivateKey};
 
 use nss_ed25519::Signer;
 use nss_p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
@@ -158,9 +158,10 @@ pub fn generate_private_key(curve: Curve) -> Result<EcPrivateKey, EcError> {
     }
 }
 
+
 pub fn private_key_from_bytes(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey, EcError> {
     match curve {
-        Curve::P256 => match nss_gk_api::ec::import_ec_private_key(bytes)
+        Curve::P256 => match nss_gk_api::ec::import_ec_private_key_pkcs8(bytes)
             {
                 Ok(key) => return Ok(EcPrivateKey::P256(key)),
                 Err(e) => return Err(EcError::EcKeyNotEcdh)
@@ -179,15 +180,14 @@ fn ed25519_private_from_bytes(bytes: &[u8]) -> Result<EcPrivateKey, EcError> {
     Ok(EcPrivateKey::Ed25519(signing_key))
 }
 
+
 pub fn private_key_to_bytes(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
-
-    println!("Calling private_key_to_bytes");
-
     match key {
         EcPrivateKey::X25519(key) => Ok(key.to_bytes().to_vec()),
         EcPrivateKey::Ed25519(key) => Ok(key.to_keypair_bytes().to_vec()),
         EcPrivateKey::P256(key) => {
-            match nss_gk_api::ec::export_ec_private_key(key)
+            let k = key.key_data();
+            match nss_gk_api::ec::export_ec_private_key_pkcs8(key)
             {
                 Ok(key) => return Ok(key),
                 Err(e) => return Err(EcError::UnsupportedCurve)
@@ -463,7 +463,6 @@ mod tests {
             let twice_exported_key = private_key_to_bytes(imported_key).unwrap();
             assert_eq!(twice_exported_key, exported_key);
         }
-
 
     #[test]
     fn public_key_can_be_imported_and_exported() {
