@@ -285,18 +285,6 @@ pub fn private_key_to_public(private_key: &EcPrivateKey) -> Result<EcPublicKey, 
     }
 }
 
-fn ecdh_p256(
-    private_key: &p256::SecretKey,
-    public_key: &p256::PublicKey,
-) -> Result<Vec<u8>, EcError> {
-    let shared_secret = p256::elliptic_curve::ecdh::diffie_hellman(
-        private_key.to_nonzero_scalar(),
-        public_key.as_affine(),
-    );
-
-    Ok(shared_secret.raw_secret_bytes().to_vec())
-}
-
 fn ecdh_x25519(
     private_key: &x25519_dalek::StaticSecret,
     public_key: &x25519_dalek::PublicKey,
@@ -317,14 +305,17 @@ pub fn private_key_ecdh(
             }
         }
         EcPrivateKey::Ed25519(_) => Err(EcError::EcKeyNotEcdh),
-        EcPrivateKey::P256(_) => Err(EcError::EcKeyNotEcdh),
-        // EcPrivateKey::P256(private_key) => {
-        //     if let EcPublicKey::P256(remote_public) = remote_public {
-        //         ecdh_p256(private_key, remote_public)
-        //     } else {
-        //         Err(EcError::EcdhKeyTypeMismatch)
-        //     }
-        // }
+        EcPrivateKey::P256(private_key) => {
+            match remote_public
+            {
+                EcPublicKey::P256(public) => {
+                    let r = nss_gk_api::ec::ecdh(private_key.clone(), public.clone()).unwrap();
+                    Ok(r)
+                }
+                _ => Err(EcError::EcdhKeyTypeMismatch)
+            }
+            
+        }
     }?;
 
     Ok(shared_secret)
@@ -379,7 +370,7 @@ pub fn generate_keypair(curve: Curve) -> Result<KeyPair, EcError> {
                 Err(e) => return Err(EcError::UnsupportedCurve),
             };
         }
-        default => {
+        _ => {
             let secret = generate_private_key(curve)?;
             let public = private_key_to_public(&secret)?;
             let secret = private_key_to_bytes(secret)?;
