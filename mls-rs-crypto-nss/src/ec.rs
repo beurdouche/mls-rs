@@ -9,7 +9,10 @@ extern crate ed25519_dalek as nss_ed25519;
 extern crate p256 as nss_p256;
 
 use nss_gk_api::{
-    ec::{self, export_ec_private_key_from_raw, import_ec_private_key_from_raw, import_ec_public_key_from_raw},
+    ec::{
+        self, export_ec_private_key_from_raw, import_ec_private_key_from_raw,
+        import_ec_public_key_from_raw,
+    },
     err::Res,
     PrivateKey,
 };
@@ -218,14 +221,11 @@ pub fn private_key_from_bytes(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
             //     i = i + 1;
             // }
 
-            let lh = [0x30, 0x41, 
-            0x2, 0x1, 0x0, 
-            0x30, 0x13, 
-                    0x6, 0x7, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x2, 0x1, 0x6, 0x8, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x3, 0x1, 0x7, 
-            0x4, 0x27, 
-                0x30, 0x25, 
-                    0x2, 0x1, 0x1, 
-            0x4, 0x20];
+            let lh = [
+                0x30, 0x41, 0x2, 0x1, 0x0, 0x30, 0x13, 0x6, 0x7, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x2,
+                0x1, 0x6, 0x8, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x3, 0x1, 0x7, 0x4, 0x27, 0x30, 0x25,
+                0x2, 0x1, 0x1, 0x4, 0x20,
+            ];
 
             let mut z = [0; 35 + 32];
             let mut i = 0;
@@ -239,7 +239,7 @@ pub fn private_key_from_bytes(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
             while i < 32 {
                 z[35 + i] = bytes[i];
                 i = i + 1;
-            }    
+            }
 
             match nss_gk_api::ec::import_ec_private_key_pkcs8(&z) {
                 Ok(key) => return Ok(EcPrivateKey::P256(key)),
@@ -278,9 +278,9 @@ pub fn private_key_to_public(private_key: &EcPrivateKey) -> Result<EcPublicKey, 
     match private_key {
         EcPrivateKey::X25519(key) => Ok(EcPublicKey::X25519(x25519_dalek::PublicKey::from(key))),
         EcPrivateKey::Ed25519(key) => Ok(EcPublicKey::Ed25519(key.verifying_key())),
-        EcPrivateKey::P256(key) => {
-            Ok(EcPublicKey::P256(nss_gk_api::ec::convert_to_public(key.clone()).unwrap()))
-        }
+        EcPrivateKey::P256(key) => Ok(EcPublicKey::P256(
+            nss_gk_api::ec::convert_to_public(key.clone()).unwrap(),
+        )),
         default => Err(EcError::EcdhKeyTypeMismatch),
     }
 }
