@@ -10,18 +10,13 @@ extern crate p256 as nss_p256;
 
 use nss_gk_api::{
     ec::{
-        self, export_ec_private_key_from_raw, import_ec_private_key_from_raw,
-        import_ec_public_key_from_raw,
+        self, 
     },
-    err::Res,
     nss_prelude::SECSuccess,
-    IntoResult, PrivateKey, PublicKey,
+    PrivateKey, PublicKey,
 };
 
 use nss_gk_api::SECItemMut;
-
-use nss_ed25519::Signer;
-use nss_p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
 
 use alloc::vec::Vec;
 use mls_rs_crypto_traits::Curve;
@@ -31,11 +26,7 @@ use std::array::TryFromSliceError;
 
 #[cfg(not(feature = "std"))]
 use core::array::TryFromSliceError;
-use core::{
-    default,
-    fmt::{self, Debug},
-    hash,
-};
+use core::fmt::{self, Debug};
 
 use crate::Hash;
 use rand_core::OsRng;
@@ -303,11 +294,6 @@ pub fn private_key_from_bytes(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
     }
 }
 
-// fn ed25519_private_from_bytes(bytes: &[u8]) -> Result<EcPrivateKey, EcError> {
-//     let signing_key = ed25519_dalek::SigningKey::from_keypair_bytes(bytes.try_into()?)?;
-//     Ok(EcPrivateKey::Ed25519(signing_key))
-// }
-
 pub fn private_key_to_bytes(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
     match key {
         EcPrivateKey::X25519(key) => Ok(key.to_bytes().to_vec()),
@@ -329,8 +315,7 @@ pub fn private_key_to_public(private_key: &EcPrivateKey) -> Result<EcPublicKey, 
         )),
         EcPrivateKey::P256(key) => Ok(EcPublicKey::P256(
             nss_gk_api::ec::convert_to_public(key.clone()).unwrap(),
-        )),
-        default => Err(EcError::EcdhKeyTypeMismatch),
+        ))
     }
 }
 
