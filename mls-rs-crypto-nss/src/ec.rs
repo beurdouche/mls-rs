@@ -14,8 +14,11 @@ use nss_gk_api::{
         import_ec_public_key_from_raw,
     },
     err::Res,
-    PrivateKey,
+    nss_prelude::SECSuccess,
+    IntoResult, PrivateKey, PublicKey,
 };
+
+use nss_gk_api::SECItemMut;
 
 use nss_ed25519::Signer;
 use nss_p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
@@ -31,8 +34,10 @@ use core::array::TryFromSliceError;
 use core::{
     default,
     fmt::{self, Debug},
+    hash,
 };
 
+use crate::Hash;
 use rand_core::OsRng;
 
 // TODO: do you need Eq/PartialEq?
@@ -305,47 +310,62 @@ pub fn private_key_ecdh(
             }
         }
         EcPrivateKey::Ed25519(_) => Err(EcError::EcKeyNotEcdh),
-        EcPrivateKey::P256(private_key) => {
-            match remote_public
-            {
-                EcPublicKey::P256(public) => {
-                    let r = nss_gk_api::ec::ecdh(private_key.clone(), public.clone()).unwrap();
-                    Ok(r)
-                }
-                _ => Err(EcError::EcdhKeyTypeMismatch)
+        EcPrivateKey::P256(private_key) => match remote_public {
+            EcPublicKey::P256(public) => {
+                let r = nss_gk_api::ec::ecdh(private_key.clone(), public.clone()).unwrap();
+                Ok(r)
             }
-            
-        }
+            _ => Err(EcError::EcdhKeyTypeMismatch),
+        },
     }?;
 
     Ok(shared_secret)
 }
 
-pub fn sign_p256(private_key: &p256::SecretKey, data: &[u8]) -> Result<Vec<u8>, EcError> {
-    let signing_key = p256::ecdsa::SigningKey::from(private_key);
+pub fn sign_p256(private_key: PrivateKey, data: &[u8]) -> Result<Vec<u8>, EcError> {
+    let mut signature = SECItemMut::make_empty();
+    let hashed_data = Hash::hash(&Hash::Sha256, data);
+    let mut data_to_sign = nss_gk_api::SECItemBorrowed::wrap(&hashed_data);
 
-    let signature: p256::ecdsa::Signature =
-        p256::ecdsa::signature::Signer::sign(&signing_key, data);
-
-    Ok(signature.to_der().to_bytes().to_vec())
+    unsafe {
+        let rv = nss_gk_api::p11::PK11_SignWithMechanism(
+            private_key.as_mut().unwrap(),
+            nss_gk_api::p11::CKM_ECDSA.into(),
+            std::ptr::null_mut(),
+            signature.as_mut(),
+            data_to_sign.as_mut(),
+        );
+        let signature = signature.as_slice().to_owned();
+        Ok(signature)
+    }
 }
 
 pub fn sign_ed25519(key: &ed25519_dalek::SigningKey, data: &[u8]) -> Result<Vec<u8>, EcError> {
     Ok(key.sign(data).to_bytes().to_vec())
 }
 
-pub fn verify_p256(
-    public_key: &p256::PublicKey,
-    signature: &[u8],
-    data: &[u8],
-) -> Result<bool, EcError> {
-    let verifying_key = p256::ecdsa::VerifyingKey::from(public_key);
-    let signature = p256::ecdsa::Signature::from_der(signature)?;
+// True if success
+fn rv_to_bool(rv: i32) -> bool {
+    //SECSuccess = 0
+    return rv == SECSuccess;
+}
 
-    let is_valid =
-        p256::ecdsa::signature::Verifier::verify(&verifying_key, data, &signature).is_ok();
+pub fn verify_p256(public_key: PublicKey, signature: &[u8], data: &[u8]) -> Result<bool, EcError> {
+    let mut signature = nss_gk_api::SECItemBorrowed::wrap(&signature);
+    let hashed_data = Hash::hash(&Hash::Sha256, data);
+    let mut data_to_verify = nss_gk_api::SECItemBorrowed::wrap(&hashed_data);
 
-    Ok(is_valid)
+    unsafe {
+        let rv = nss_gk_api::p11::PK11_VerifyWithMechanism(
+            public_key.as_mut().unwrap(),
+            nss_gk_api::p11::CKM_ECDSA.into(),
+            std::ptr::null_mut(),
+            data_to_verify.as_mut(),
+            signature.as_mut(),
+            std::ptr::null_mut(),
+        );
+        Ok(rv_to_bool(rv))
+    }
 }
 
 pub fn verify_ed25519(
@@ -459,10 +479,7 @@ pub(crate) mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use core::borrow::Borrow;
-
     use assert_matches::assert_matches;
-    use p256::elliptic_curve::consts::P256;
 
     use super::{
         generate_keypair, generate_private_key, private_key_bytes_to_public,
@@ -473,9 +490,6 @@ mod tests {
     };
 
     use alloc::vec;
-
-    use crate::ec::EcPrivateKey;
-
     const SUPPORTED_CURVES: [Curve; 3] = [Curve::Ed25519, Curve::P256, Curve::X25519];
 
     #[test]
