@@ -44,8 +44,6 @@ pub enum EcPrivateKey {
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 pub enum EcError {
-    #[cfg_attr(feature = "std", error("p256 error: {0:?}"))]
-    P256Error(p256::elliptic_curve::Error),
     #[cfg_attr(feature = "std", error("unsupported curve type"))]
     UnsupportedCurve,
     #[cfg_attr(feature = "std", error("invalid public key data"))]
@@ -54,26 +52,12 @@ pub enum EcError {
     EcKeyNotSignature,
     #[cfg_attr(feature = "std", error(transparent))]
     TryFromSliceError(TryFromSliceError),
-    #[cfg_attr(feature = "std", error("p256 signature error: {0:?}"))]
-    SignatureError(p256::ecdsa::Error),
     #[cfg_attr(feature = "std", error("rand error: {0:?}"))]
     RandCoreError(rand_core::Error),
     #[cfg_attr(feature = "std", error("ecdh key type mismatch"))]
     EcdhKeyTypeMismatch,
     #[cfg_attr(feature = "std", error("ec key is not an ecdh key"))]
     EcKeyNotEcdh,
-}
-
-impl From<p256::elliptic_curve::Error> for EcError {
-    fn from(value: p256::elliptic_curve::Error) -> Self {
-        EcError::P256Error(value)
-    }
-}
-
-impl From<p256::ecdsa::Error> for EcError {
-    fn from(value: p256::ecdsa::Error) -> Self {
-        EcError::SignatureError(value)
-    }
 }
 
 impl From<rand_core::Error> for EcError {
@@ -336,13 +320,6 @@ pub fn private_key_to_public(private_key: &EcPrivateKey) -> Result<EcPublicKey, 
             nss_gk_api::ec::convert_to_public(key.clone()).unwrap(),
         )),
     }
-}
-
-fn ecdh_x25519(
-    private_key: &x25519_dalek::StaticSecret,
-    public_key: &x25519_dalek::PublicKey,
-) -> Result<Vec<u8>, EcError> {
-    Ok(private_key.diffie_hellman(public_key).to_bytes().to_vec())
 }
 
 pub fn private_key_ecdh(

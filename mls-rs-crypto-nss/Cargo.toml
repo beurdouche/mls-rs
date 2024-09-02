@@ -18,7 +18,6 @@ std = [
     "mls-rs-crypto-traits/std",
     "getrandom/std",
     "rand_core/std",
-    "p256/std",
     "dep:thiserror"
 ]
 
@@ -35,11 +34,6 @@ zeroize = { version = "1", default-features = false, features = ["alloc", "zeroi
 # Random
 getrandom = { version = "0.2", default-features = false, features = ["custom"] }
 rand_core = { version = "0.6", default-features = false, features = ["alloc"] }
-
-# KEM
-p256 = { version = "0.13", default-features = false, features = ["alloc", "ecdh", "ecdsa", "pem"] }
-x25519-dalek = { version = "2", default-features = false, features = ["alloc", "static_secrets"] }
-ed25519-dalek = { version = "2", default-features = false, features = ["alloc", "rand_core"] }
 
 maybe-async = "0.2.10"
 
