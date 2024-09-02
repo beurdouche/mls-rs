@@ -5,13 +5,8 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-extern crate ed25519_dalek as nss_ed25519;
-extern crate p256 as nss_p256;
-
 use nss_gk_api::{
-    ec::{
-        self, 
-    },
+    ec::{self},
     nss_prelude::SECSuccess,
     PrivateKey, PublicKey,
 };
@@ -29,20 +24,19 @@ use core::array::TryFromSliceError;
 use core::fmt::{self, Debug};
 
 use crate::Hash;
-use rand_core::OsRng;
 
 // TODO: do you need Eq/PartialEq?
 // #[derive(Debug, Eq, PartialEq, Clone)]
 #[derive(Debug, Clone)]
 pub enum EcPublicKey {
-    X25519(x25519_dalek::PublicKey),
+    X25519(nss_gk_api::PublicKey),
     Ed25519(nss_gk_api::PublicKey),
     P256(nss_gk_api::PublicKey),
 }
 
 #[derive(Clone)]
 pub enum EcPrivateKey {
-    X25519(x25519_dalek::StaticSecret),
+    X25519(nss_gk_api::PrivateKey),
     Ed25519(nss_gk_api::PrivateKey),
     P256(nss_gk_api::PrivateKey),
 }
@@ -114,15 +108,19 @@ pub fn pub_key_from_uncompressed(bytes: &[u8], curve: Curve) -> Result<EcPublicK
             }
         }
         Curve::Ed25519 => {
-            let pk_test = nss_gk_api::ec::import_ec_public_key_from_raw(bytes, ec::EcCurve::Ed25519);
+            let pk_test =
+                nss_gk_api::ec::import_ec_public_key_from_raw(bytes, ec::EcCurve::Ed25519);
             match pk_test {
                 Ok(keys) => Ok(EcPublicKey::Ed25519(keys)),
                 _ => Err(EcError::UnsupportedCurve),
             }
         }
         Curve::X25519 => {
-            let array: [u8; 32] = bytes.try_into()?;
-            Ok(EcPublicKey::X25519(x25519_dalek::PublicKey::from(array)))
+            let pk_test = nss_gk_api::ec::import_ec_public_key_from_raw(bytes, ec::EcCurve::X25519);
+            match pk_test {
+                Ok(keys) => Ok(EcPublicKey::X25519(keys)),
+                _ => Err(EcError::UnsupportedCurve),
+            }
         }
         _ => Err(EcError::UnsupportedCurve),
     }
@@ -130,8 +128,7 @@ pub fn pub_key_from_uncompressed(bytes: &[u8], curve: Curve) -> Result<EcPublicK
 
 pub fn pub_key_to_uncompressed(key: EcPublicKey) -> Result<Vec<u8>, EcError> {
     match key {
-        EcPublicKey::X25519(key) => Ok(key.to_bytes().to_vec()),
-        EcPublicKey::P256(key) | EcPublicKey::Ed25519(key) => {
+        EcPublicKey::P256(key) | EcPublicKey::Ed25519(key) | EcPublicKey::X25519(key) => {
             let k = nss_gk_api::ec::export_ec_public_key_from_raw(key);
             match k {
                 Ok(k) => Ok(k),
@@ -150,10 +147,13 @@ pub fn generate_private_key(curve: Curve) -> Result<EcPrivateKey, EcError> {
                 Err(e) => return Err(EcError::UnsupportedCurve),
             }
         }
-        Curve::X25519 => Ok(EcPrivateKey::X25519(
-            x25519_dalek::StaticSecret::random_from_rng(OsRng),
-        )),
-
+        Curve::X25519 => {
+            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::X25519);
+            match key {
+                Ok(key) => return Ok(EcPrivateKey::X25519(key.private)),
+                Err(e) => return Err(EcError::UnsupportedCurve),
+            }
+        }
         Curve::Ed25519 => {
             let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::Ed25519);
             match key {
@@ -175,13 +175,17 @@ pub fn private_key_from_pkcs8(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
             Ok(key) => return Ok(EcPrivateKey::Ed25519(key)),
             Err(e) => return Err(EcError::EcKeyNotEcdh),
         },
+        Curve::X25519 => match nss_gk_api::ec::import_ec_private_key_pkcs8(bytes) {
+            Ok(key) => return Ok(EcPrivateKey::X25519(key)),
+            Err(e) => return Err(EcError::EcKeyNotEcdh),
+        },
         _ => Err(EcError::UnsupportedCurve),
     }
 }
 
 pub fn private_key_to_pkcs8(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
     match key {
-        EcPrivateKey::P256(key) | EcPrivateKey::Ed25519(key) => {
+        EcPrivateKey::P256(key) | EcPrivateKey::Ed25519(key) | EcPrivateKey::X25519(key) => {
             let k = key.key_data();
             match nss_gk_api::ec::export_ec_private_key_pkcs8(key) {
                 Ok(key) => return Ok(key),
@@ -254,21 +258,11 @@ pub fn private_key_from_bytes(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
                 Err(e) => return Err(EcError::EcKeyNotEcdh),
             }
         }
-        Curve::X25519 => bytes
-            .try_into()
-            .map_err(|_| EcError::EcKeyInvalidKeyData)
-            .map(|bytes: &[u8; 32]| EcPrivateKey::X25519(x25519_dalek::StaticSecret::from(*bytes))),
         Curve::Ed25519 => {
             let lh = [
                 0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
                 0x04, 0x20,
             ];
-
-            for x in bytes {
-                print!("{:#04x}  ",x);
-            }
-
-            
 
             let mut z = [0; 16 + 32];
             let mut i = 0;
@@ -289,15 +283,38 @@ pub fn private_key_from_bytes(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
                 Err(e) => return Err(EcError::EcKeyNotEcdh),
             }
         }
+        Curve::X25519 => {
+            let lh = [
+                0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x04, 0x22,
+                0x04, 0x20,
+            ];
 
+            let mut z = [0; 16 + 32];
+            let mut i = 0;
+
+            while i < lh.len() {
+                z[i] = lh[i];
+                i = i + 1;
+            }
+
+            i = 0;
+            while i < 32 {
+                z[16 + i] = bytes[i];
+                i = i + 1;
+            }
+
+            match nss_gk_api::ec::import_ec_private_key_pkcs8(&z) {
+                Ok(key) => return Ok(EcPrivateKey::Ed25519(key)),
+                Err(e) => return Err(EcError::EcKeyNotEcdh),
+            }
+        }
         _ => Err(EcError::UnsupportedCurve),
     }
 }
 
 pub fn private_key_to_bytes(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
     match key {
-        EcPrivateKey::X25519(key) => Ok(key.to_bytes().to_vec()),
-        EcPrivateKey::Ed25519(key) | EcPrivateKey::P256(key) => {
+        EcPrivateKey::Ed25519(key) | EcPrivateKey::P256(key) | EcPrivateKey::X25519(key) => {
             let k = key.key_data();
             match nss_gk_api::ec::export_ec_private_key_from_raw(key) {
                 Ok(key) => return Ok(key),
@@ -309,13 +326,15 @@ pub fn private_key_to_bytes(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
 
 pub fn private_key_to_public(private_key: &EcPrivateKey) -> Result<EcPublicKey, EcError> {
     match private_key {
-        EcPrivateKey::X25519(key) => Ok(EcPublicKey::X25519(x25519_dalek::PublicKey::from(key))),
+        EcPrivateKey::X25519(key) => Ok(EcPublicKey::X25519(
+            nss_gk_api::ec::convert_to_public(key.clone()).unwrap(),
+        )),
         EcPrivateKey::Ed25519(key) => Ok(EcPublicKey::Ed25519(
             nss_gk_api::ec::convert_to_public(key.clone()).unwrap(),
         )),
         EcPrivateKey::P256(key) => Ok(EcPublicKey::P256(
             nss_gk_api::ec::convert_to_public(key.clone()).unwrap(),
-        ))
+        )),
     }
 }
 
@@ -331,13 +350,13 @@ pub fn private_key_ecdh(
     remote_public: &EcPublicKey,
 ) -> Result<Vec<u8>, EcError> {
     let shared_secret = match private_key {
-        EcPrivateKey::X25519(private_key) => {
-            if let EcPublicKey::X25519(remote_public) = remote_public {
-                ecdh_x25519(private_key, remote_public)
-            } else {
-                Err(EcError::EcdhKeyTypeMismatch)
+        EcPrivateKey::X25519(private_key) => match remote_public {
+            EcPublicKey::X25519(public) => {
+                let r = nss_gk_api::ec::ecdh(private_key.clone(), public.clone()).unwrap();
+                Ok(r)
             }
-        }
+            _ => Err(EcError::EcdhKeyTypeMismatch),
+        },
         EcPrivateKey::Ed25519(_) => Err(EcError::EcKeyNotEcdh),
         EcPrivateKey::P256(private_key) => match remote_public {
             EcPublicKey::P256(public) => {
@@ -451,6 +470,17 @@ pub fn generate_keypair(curve: Curve) -> Result<KeyPair, EcError> {
                     let secret: Vec<u8> = private_key_to_bytes(EcPrivateKey::Ed25519(key.private))?;
                     let public: Vec<u8> =
                         pub_key_to_uncompressed(EcPublicKey::Ed25519(key.public))?;
+                    return Ok(KeyPair { public, secret });
+                }
+                Err(e) => return Err(EcError::UnsupportedCurve),
+            };
+        }
+        Curve::X25519 => {
+            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::X25519);
+            match key {
+                Ok(key) => {
+                    let secret: Vec<u8> = private_key_to_bytes(EcPrivateKey::X25519(key.private))?;
+                    let public: Vec<u8> = pub_key_to_uncompressed(EcPublicKey::X25519(key.public))?;
                     return Ok(KeyPair { public, secret });
                 }
                 Err(e) => return Err(EcError::UnsupportedCurve),
@@ -602,39 +632,22 @@ mod tests {
     }
 
     #[test]
-    fn private_key_pkcs8_can_be_imported_and_exported_p256() {
-        let curve = Curve::P256;
-        let key = generate_private_key(curve)
-            .unwrap_or_else(|e| panic!("Failed to generate private key for {curve:?} : {e:?}"));
+    fn private_key_pkcs8_can_be_imported_and_exported() {
+        SUPPORTED_CURVES.iter().copied().for_each(|curve| {
+            let key = generate_private_key(curve)
+                .unwrap_or_else(|e| panic!("Failed to generate private key for {curve:?} : {e:?}"));
 
-        let exported_bytes = private_key_to_pkcs8(key)
-            .unwrap_or_else(|e| panic!("Failed to export private key for {curve:?} : {e:?}"));
+            let exported_bytes = private_key_to_pkcs8(key)
+                .unwrap_or_else(|e| panic!("Failed to export private key for {curve:?} : {e:?}"));
 
-        let imported_key = private_key_from_pkcs8(&exported_bytes, curve)
-            .unwrap_or_else(|e| panic!("Failed to import private key for {curve:?} : {e:?}"));
+            let imported_key = private_key_from_pkcs8(&exported_bytes, curve)
+                .unwrap_or_else(|e| panic!("Failed to import private key for {curve:?} : {e:?}"));
 
-        let exported_bytes_2 = private_key_to_pkcs8(imported_key)
-            .unwrap_or_else(|e| panic!("Failed to export private key for {curve:?} : {e:?}"));
+            let exported_bytes_2 = private_key_to_pkcs8(imported_key)
+                .unwrap_or_else(|e| panic!("Failed to export private key for {curve:?} : {e:?}"));
 
-        assert_eq!(exported_bytes_2, exported_bytes);
-    }
-
-    #[test]
-    fn private_key_pkcs8_can_be_imported_and_exported_ed25519() {
-        let curve = Curve::Ed25519;
-        let key = generate_private_key(curve)
-            .unwrap_or_else(|e| panic!("Failed to generate private key for {curve:?} : {e:?}"));
-
-        let exported_bytes = private_key_to_pkcs8(key)
-            .unwrap_or_else(|e| panic!("Failed to export private key for {curve:?} : {e:?}"));
-
-        let imported_key = private_key_from_pkcs8(&exported_bytes, curve)
-            .unwrap_or_else(|e| panic!("Failed to import private key for {curve:?} : {e:?}"));
-
-        let exported_bytes_2 = private_key_to_pkcs8(imported_key)
-            .unwrap_or_else(|e| panic!("Failed to export private key for {curve:?} : {e:?}"));
-
-        assert_eq!(exported_bytes_2, exported_bytes);
+            assert_eq!(exported_bytes_2, exported_bytes);
+        });
     }
 
     #[test]
