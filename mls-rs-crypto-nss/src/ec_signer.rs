@@ -8,7 +8,7 @@ use crate::ec::{
     EcPrivateKey, EcPublicKey,
 };
 use alloc::vec::Vec;
-use core::{borrow::Borrow, ops::Deref};
+use core::{ops::Deref};
 use mls_rs_core::crypto::{CipherSuite, SignaturePublicKey, SignatureSecretKey};
 use mls_rs_crypto_traits::Curve;
 

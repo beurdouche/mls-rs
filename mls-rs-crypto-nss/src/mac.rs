@@ -86,7 +86,7 @@ mod test {
             {
                 1 => Hash::Sha256,
                 2 => Hash::Sha384,
-                default => Hash::Sha256,
+                _default => Hash::Sha256,
             };
         let message = t.message;
         let hash_result = hash_fun.hash(message.as_slice());
