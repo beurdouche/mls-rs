@@ -83,7 +83,7 @@ impl EcSigner {
         signature: &[u8],
         data: &[u8],
     ) -> Result<(), EcSignerError> {
-        let public_key = pub_key_from_uncompressed(public_key, self.0)?;
+        let public_key = pub_key_from_uncompressed(public_key.to_vec(), self.0)?;
 
         let ver = match public_key {
             EcPublicKey::X25519(_) => Err(EcSignerError::EcKeyNotSignature),

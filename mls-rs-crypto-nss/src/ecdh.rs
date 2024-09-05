@@ -101,7 +101,7 @@ impl DhType for Ecdh {
 
 impl Ecdh {
     fn to_ec_public_key(&self, public_key: &HpkePublicKey) -> Result<EcPublicKey, EcdhKemError> {
-        Ok(pub_key_from_uncompressed(public_key, self.0)?)
+        Ok(pub_key_from_uncompressed(public_key.to_vec(), self.0)?)
     }
 }
 
