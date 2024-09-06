@@ -60,7 +60,7 @@ impl EcSigner {
         &self,
         secret_key: &SignatureSecretKey,
     ) -> Result<SignaturePublicKey, EcSignerError> {
-        Ok(private_key_bytes_to_public(secret_key, self.0)?.into())
+        Ok(private_key_bytes_to_public(secret_key.to_vec(), self.0)?.into())
     }
 
     pub fn sign(
@@ -68,7 +68,7 @@ impl EcSigner {
         secret_key: &SignatureSecretKey,
         data: &[u8],
     ) -> Result<Vec<u8>, EcSignerError> {
-        let secret_key = private_key_from_bytes(secret_key, self.0)?;
+        let secret_key = private_key_from_bytes(secret_key.to_vec(), self.0)?;
 
         match secret_key {
             EcPrivateKey::X25519(_) => Err(EcSignerError::EcKeyNotSignature),

@@ -5,13 +5,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use nss_gk_api::{
-    ec::{self},
-    nss_prelude::SECSuccess,
-    PrivateKey, PublicKey,
-};
-
-use nss_gk_api::SECItemMut;
+use nss_gk_api::{PrivateKey, PublicKey};
 
 use alloc::vec::Vec;
 use mls_rs_crypto_traits::Curve;
@@ -23,10 +17,8 @@ use std::array::TryFromSliceError;
 use core::array::TryFromSliceError;
 use core::fmt::{self, Debug};
 
-use crate::{ecdh::EcdhKemError, Hash};
+use crate::Hash;
 
-// TODO: do you need Eq/PartialEq?
-// #[derive(Debug, Eq, PartialEq, Clone)]
 #[derive(Debug, Clone)]
 pub enum EcPublicKey {
     X25519(nss_gk_api::PublicKey),
@@ -57,7 +49,9 @@ pub enum EcError {
     #[cfg_attr(feature = "std", error("ecdh key type mismatch"))]
     EcdhKeyTypeMismatch,
     #[cfg_attr(feature = "std", error("ec key is not an ecdh key"))]
-    EcKeyNotEcdh
+    EcKeyNotEcdh,
+    #[cfg_attr(feature = "std", error("general nss failure"))]
+    GeneralFailure,
 }
 
 impl From<rand_core::Error> for EcError {
@@ -84,13 +78,21 @@ impl core::fmt::Debug for EcPrivateKey {
 
 fn private_key_len(curve: Curve) -> usize {
     match curve {
+        Curve::P256 => 0x20 as usize,
+        Curve::Ed25519 | Curve::X25519 => 0x20 as usize,
+        _ => 0 as usize,
+    }
+}
+
+fn public_key_len(curve: Curve) -> usize {
+    match curve {
         Curve::P256 => 0x41 as usize,
         Curve::Ed25519 | Curve::X25519 => 32 as usize,
         _ => 0 as usize,
     }
 }
 
-fn build_spki_from_raw_private_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8>, EcError> {
+fn build_spki_from_raw_public_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8>, EcError> {
     let mut lh = {
         match curve {
             Curve::P256 => vec![
@@ -109,14 +111,18 @@ fn build_spki_from_raw_private_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8>
 
     let mut key = key.clone();
 
+    if public_key_len(curve) == 0 {
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
     // if the key length is bigger than the expected -> wrong key
-    if (key.len() > private_key_len(curve)) {
+    if key.len() > public_key_len(curve) {
         return Err(EcError::EcKeyInvalidKeyData);
     }
 
     // if the key length is shorted than expected -> extend the key
-    if (key.len() < private_key_len(curve)) {
-        let mut zeros = vec![0 as u8; private_key_len(curve) - key.len()];
+    if key.len() < public_key_len(curve) {
+        let mut zeros = vec![0 as u8; public_key_len(curve) - key.len()];
         zeros.append(&mut key);
         lh.append(&mut zeros);
     } else {
@@ -127,28 +133,20 @@ fn build_spki_from_raw_private_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8>
 }
 
 pub fn pub_key_from_uncompressed(bytes: Vec<u8>, curve: Curve) -> Result<EcPublicKey, EcError> {
+    let z = build_spki_from_raw_public_key(bytes, curve).unwrap();
     match curve {
-        Curve::P256 => {
-            let z = build_spki_from_raw_private_key(bytes, curve).unwrap();
-            match nss_gk_api::ec::import_ec_public_key_from_spki(&z) {
-                Ok(key) => return Ok(EcPublicKey::P256(key)),
-                Err(_) => return Err(EcError::EcKeyInvalidKeyData),
-            }
-        }
-        Curve::Ed25519 => {
-            let z = build_spki_from_raw_private_key(bytes, curve).unwrap();
-            match nss_gk_api::ec::import_ec_public_key_from_spki(&z) {
-                Ok(key) => return Ok(EcPublicKey::Ed25519(key)),
-                Err(_) => return Err(EcError::EcKeyInvalidKeyData),
-            }
-        }
-        Curve::X25519 => {
-            let z = build_spki_from_raw_private_key(bytes, curve).unwrap();
-            match nss_gk_api::ec::import_ec_public_key_from_spki(&z) {
-                Ok(key) => return Ok(EcPublicKey::X25519(key)),
-                Err(_) => return Err(EcError::EcKeyInvalidKeyData),
-            }
-        }
+        Curve::P256 => match nss_gk_api::ec::import_ec_public_key_from_spki(&z) {
+            Ok(key) => return Ok(EcPublicKey::P256(key)),
+            Err(_) => return Err(EcError::EcKeyInvalidKeyData),
+        },
+        Curve::Ed25519 => match nss_gk_api::ec::import_ec_public_key_from_spki(&z) {
+            Ok(key) => return Ok(EcPublicKey::Ed25519(key)),
+            Err(_) => return Err(EcError::EcKeyInvalidKeyData),
+        },
+        Curve::X25519 => match nss_gk_api::ec::import_ec_public_key_from_spki(&z) {
+            Ok(key) => return Ok(EcPublicKey::X25519(key)),
+            Err(_) => return Err(EcError::EcKeyInvalidKeyData),
+        },
         _ => Err(EcError::UnsupportedCurve),
     }
 }
@@ -163,46 +161,21 @@ pub fn pub_key_to_uncompressed(key: EcPublicKey) -> Result<Vec<u8>, EcError> {
 }
 
 pub fn generate_private_key(curve: Curve) -> Result<EcPrivateKey, EcError> {
+    let key_pair = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::P256).unwrap();
     match curve {
-        Curve::P256 => {
-            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::P256);
-            match key {
-                Ok(key) => return Ok(EcPrivateKey::P256(key.private)),
-                Err(e) => return Err(EcError::UnsupportedCurve),
-            }
-        }
-        Curve::X25519 => {
-            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::X25519);
-            match key {
-                Ok(key) => return Ok(EcPrivateKey::X25519(key.private)),
-                Err(e) => return Err(EcError::UnsupportedCurve),
-            }
-        }
-        Curve::Ed25519 => {
-            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::Ed25519);
-            match key {
-                Ok(key) => return Ok(EcPrivateKey::Ed25519(key.private)),
-                Err(e) => return Err(EcError::UnsupportedCurve),
-            }
-        }
+        Curve::P256 => return Ok(EcPrivateKey::P256(key_pair.private)),
+        Curve::X25519 => return Ok(EcPrivateKey::X25519(key_pair.private)),
+        Curve::Ed25519 => return Ok(EcPrivateKey::Ed25519(key_pair.private)),
         _ => Err(EcError::UnsupportedCurve),
     }
 }
 
 pub fn private_key_from_pkcs8(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey, EcError> {
+    let private_key = nss_gk_api::ec::import_ec_private_key_pkcs8(bytes).unwrap();
     match curve {
-        Curve::P256 => match nss_gk_api::ec::import_ec_private_key_pkcs8(bytes) {
-            Ok(key) => return Ok(EcPrivateKey::P256(key)),
-            Err(e) => return Err(EcError::EcKeyNotEcdh),
-        },
-        Curve::Ed25519 => match nss_gk_api::ec::import_ec_private_key_pkcs8(bytes) {
-            Ok(key) => return Ok(EcPrivateKey::Ed25519(key)),
-            Err(e) => return Err(EcError::EcKeyNotEcdh),
-        },
-        Curve::X25519 => match nss_gk_api::ec::import_ec_private_key_pkcs8(bytes) {
-            Ok(key) => return Ok(EcPrivateKey::X25519(key)),
-            Err(e) => return Err(EcError::EcKeyNotEcdh),
-        },
+        Curve::P256 => return Ok(EcPrivateKey::P256(private_key)),
+        Curve::Ed25519 => return Ok(EcPrivateKey::Ed25519(private_key)),
+        Curve::X25519 => return Ok(EcPrivateKey::X25519(private_key)),
         _ => Err(EcError::UnsupportedCurve),
     }
 }
@@ -210,128 +183,66 @@ pub fn private_key_from_pkcs8(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
 pub fn private_key_to_pkcs8(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
     match key {
         EcPrivateKey::P256(key) | EcPrivateKey::Ed25519(key) | EcPrivateKey::X25519(key) => {
-            let k = key.key_data();
             match nss_gk_api::ec::export_ec_private_key_pkcs8(key) {
                 Ok(key) => return Ok(key),
-                Err(e) => return Err(EcError::UnsupportedCurve),
+                Err(_) => return Err(EcError::EcKeyInvalidKeyData),
             }
         }
         _ => Err(EcError::UnsupportedCurve),
     }
 }
 
-pub fn private_key_from_bytes(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey, EcError> {
-    match curve {
-        Curve::P256 => {
-            // let lh = [
-            //     0x30, 0x81, 0x87, 0x02, 0x01, 0x00, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce,
-            //     0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x04,
-            //     0x6d, 0x30, 0x6b, 0x02, 0x01, 0x01, 0x04, 0x20,
-            // ];
-            // let rh = [
-            //     0xa1, 0x44, 0x03, 0x42, 0x00, 0x04, 0x08, 0xf1, 0x3f, 0x67, 0x3c, 0xc3, 0xeb, 0x08,
-            //     0xc9, 0x9c, 0x21, 0x85, 0x7a, 0x17, 0x3e, 0x24, 0xf1, 0xe9, 0xd1, 0xd0, 0xef, 0x80,
-            //     0xa0, 0xac, 0x81, 0x13, 0x70, 0x79, 0x50, 0x7f, 0xd3, 0x93, 0xa8, 0x0d, 0x24, 0x9a,
-            //     0xf2, 0x6b, 0xf4, 0x31, 0x3f, 0x2b, 0xdf, 0xbe, 0xfd, 0x03, 0xb4, 0x3a, 0x3d, 0x1f,
-            //     0x8d, 0x27, 0xae, 0x9f, 0x85, 0xbf, 0x0a, 0x6f, 0xe1, 0xa5, 0xe2, 0x4e, 0xac, 0x98,
-            // ];
-
-            // // Let's hope that the key is 32.
-            // let mut z = [0; 36 + 70 + 32];
-            // let mut i = 0;
-
-            // while i < lh.len() {
-            //     z[i] = lh[i];
-            //     i = i + 1;
-            // }
-
-            // i = 0;
-            // while i < 32 {
-            //     z[36 + i] = bytes[i];
-            //     i = i + 1;
-            // }
-
-            // i = 0;
-            // while i < rh.len() {
-            //     z[36 + 32 + i] = rh[i];
-            //     i = i + 1;
-            // }
-
-            let lh = [
+fn build_pkcs8_from_raw_private_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8>, EcError> {
+    let mut lh = {
+        match curve {
+            Curve::P256 => vec![
                 0x30, 0x41, 0x2, 0x1, 0x0, 0x30, 0x13, 0x6, 0x7, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x2,
                 0x1, 0x6, 0x8, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x3, 0x1, 0x7, 0x4, 0x27, 0x30, 0x25,
                 0x2, 0x1, 0x1, 0x4, 0x20,
-            ];
-
-            let mut z = [0; 35 + 32];
-            let mut i = 0;
-
-            while i < lh.len() {
-                z[i] = lh[i];
-                i = i + 1;
-            }
-
-            i = 0;
-            while i < 32 {
-                z[35 + i] = bytes[i];
-                i = i + 1;
-            }
-
-            match nss_gk_api::ec::import_ec_private_key_pkcs8(&z) {
-                Ok(key) => return Ok(EcPrivateKey::P256(key)),
-                Err(e) => return Err(EcError::EcKeyNotEcdh),
-            }
-        }
-        Curve::Ed25519 => {
-            let lh = [
+            ],
+            Curve::Ed25519 => vec![
                 0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
                 0x04, 0x20,
-            ];
-
-            let mut z = [0; 16 + 32];
-            let mut i = 0;
-
-            while i < lh.len() {
-                z[i] = lh[i];
-                i = i + 1;
-            }
-
-            i = 0;
-            while i < 32 {
-                z[16 + i] = bytes[i];
-                i = i + 1;
-            }
-
-            match nss_gk_api::ec::import_ec_private_key_pkcs8(&z) {
-                Ok(key) => return Ok(EcPrivateKey::Ed25519(key)),
-                Err(e) => return Err(EcError::EcKeyNotEcdh),
-            }
-        }
-        Curve::X25519 => {
-            let lh = [
+            ],
+            Curve::X25519 => vec![
                 0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x04, 0x22,
                 0x04, 0x20,
-            ];
-
-            let mut z = [0; 16 + 32];
-            let mut i = 0;
-
-            while i < lh.len() {
-                z[i] = lh[i];
-                i = i + 1;
-            }
-
-            i = 0;
-            while i < 32 {
-                z[16 + i] = bytes[i];
-                i = i + 1;
-            }
-
-            match nss_gk_api::ec::import_ec_private_key_pkcs8(&z) {
-                Ok(key) => return Ok(EcPrivateKey::X25519(key)),
-                Err(e) => return Err(EcError::EcKeyNotEcdh),
-            }
+            ],
+            _ => return Err(EcError::UnsupportedCurve),
         }
+    };
+
+    let mut key = key.clone();
+
+    if private_key_len(curve) == 0 {
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    // if the key length is bigger than the expected -> wrong key
+    if key.len() > private_key_len(curve) {
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    // if the key length is shorted than expected -> extend the key
+    if key.len() < private_key_len(curve) {
+        let mut zeros = vec![0 as u8; private_key_len(curve) - key.len()];
+        zeros.append(&mut key);
+        lh.append(&mut zeros);
+    } else {
+        lh.append(&mut key);
+    }
+
+    Ok(lh)
+}
+
+pub fn private_key_from_bytes(bytes: Vec<u8>, curve: Curve) -> Result<EcPrivateKey, EcError> {
+    let private_key_pkcs8 = build_pkcs8_from_raw_private_key(bytes, curve).unwrap();
+    let private_key_imported =
+        nss_gk_api::ec::import_ec_private_key_pkcs8(&private_key_pkcs8).unwrap();
+    match curve {
+        Curve::P256 => Ok(EcPrivateKey::P256(private_key_imported)),
+        Curve::Ed25519 => Ok(EcPrivateKey::Ed25519(private_key_imported)),
+        Curve::X25519 => Ok(EcPrivateKey::X25519(private_key_imported)),
         _ => Err(EcError::UnsupportedCurve),
     }
 }
@@ -339,11 +250,8 @@ pub fn private_key_from_bytes(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
 pub fn private_key_to_bytes(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
     match key {
         EcPrivateKey::Ed25519(key) | EcPrivateKey::P256(key) | EcPrivateKey::X25519(key) => {
-            let k = key.key_data();
-            match nss_gk_api::ec::export_ec_private_key_from_raw(key) {
-                Ok(key) => return Ok(key),
-                Err(e) => return Err(EcError::UnsupportedCurve),
-            }
+            let key = nss_gk_api::ec::export_ec_private_key_from_raw(key).unwrap();
+            Ok(key)
         }
     }
 }
@@ -416,38 +324,22 @@ pub fn verify_ed25519(
 pub fn generate_keypair(curve: Curve) -> Result<KeyPair, EcError> {
     match curve {
         Curve::P256 => {
-            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::P256);
-            match key {
-                Ok(key) => {
-                    let secret: Vec<u8> = private_key_to_bytes(EcPrivateKey::P256(key.private))?;
-                    let public: Vec<u8> = pub_key_to_uncompressed(EcPublicKey::P256(key.public))?;
-                    return Ok(KeyPair { public, secret });
-                }
-                Err(e) => return Err(EcError::UnsupportedCurve),
-            };
+            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::P256).unwrap();
+            let secret: Vec<u8> = private_key_to_bytes(EcPrivateKey::P256(key.private))?;
+            let public: Vec<u8> = pub_key_to_uncompressed(EcPublicKey::P256(key.public))?;
+            return Ok(KeyPair { public, secret });
         }
         Curve::Ed25519 => {
-            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::Ed25519);
-            match key {
-                Ok(key) => {
-                    let secret: Vec<u8> = private_key_to_bytes(EcPrivateKey::Ed25519(key.private))?;
-                    let public: Vec<u8> =
-                        pub_key_to_uncompressed(EcPublicKey::Ed25519(key.public))?;
-                    return Ok(KeyPair { public, secret });
-                }
-                Err(e) => return Err(EcError::UnsupportedCurve),
-            };
+            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::Ed25519).unwrap();
+            let secret: Vec<u8> = private_key_to_bytes(EcPrivateKey::Ed25519(key.private))?;
+            let public: Vec<u8> = pub_key_to_uncompressed(EcPublicKey::Ed25519(key.public))?;
+            return Ok(KeyPair { public, secret });
         }
         Curve::X25519 => {
-            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::X25519);
-            match key {
-                Ok(key) => {
-                    let secret: Vec<u8> = private_key_to_bytes(EcPrivateKey::X25519(key.private))?;
-                    let public: Vec<u8> = pub_key_to_uncompressed(EcPublicKey::X25519(key.public))?;
-                    return Ok(KeyPair { public, secret });
-                }
-                Err(e) => return Err(EcError::UnsupportedCurve),
-            };
+            let key = nss_gk_api::ec::ecdh_keygen(nss_gk_api::ec::EcCurve::X25519).unwrap();
+            let secret: Vec<u8> = private_key_to_bytes(EcPrivateKey::X25519(key.private))?;
+            let public: Vec<u8> = pub_key_to_uncompressed(EcPublicKey::X25519(key.public))?;
+            return Ok(KeyPair { public, secret });
         }
         _ => {
             let secret = generate_private_key(curve)?;
@@ -474,7 +366,7 @@ impl Debug for KeyPair {
     }
 }
 
-pub fn private_key_bytes_to_public(secret_key: &[u8], curve: Curve) -> Result<Vec<u8>, EcError> {
+pub fn private_key_bytes_to_public(secret_key: Vec<u8>, curve: Curve) -> Result<Vec<u8>, EcError> {
     let secret_key = private_key_from_bytes(secret_key, curve)?;
     let public_key = private_key_to_public(&secret_key)?;
     pub_key_to_uncompressed(public_key)
@@ -584,7 +476,7 @@ mod tests {
         SUPPORTED_CURVES.iter().copied().for_each(|curve| {
             let key_bytes = get_test_secret_keys().get_key_from_curve(curve);
 
-            let imported_key = private_key_from_bytes(&key_bytes, curve)
+            let imported_key = private_key_from_bytes(key_bytes.clone(), curve)
                 .unwrap_or_else(|e| panic!("Failed to import private key for {curve:?} : {e:?}"));
 
             let exported_bytes = private_key_to_bytes(imported_key)
@@ -635,7 +527,7 @@ mod tests {
 
         for curve in SUPPORTED_CURVES.iter().copied() {
             let secret_key = test_secret_keys.get_key_from_curve(curve);
-            let public_key = private_key_bytes_to_public(&secret_key, curve).unwrap();
+            let public_key = private_key_bytes_to_public(secret_key, curve).unwrap();
             let expected_public_key = test_public_keys.get_key_from_curve(curve);
             assert_eq!(public_key, expected_public_key);
         }
@@ -664,7 +556,7 @@ mod tests {
                 .unwrap();
 
         // Keys must be <= to order
-        let p256_res = private_key_from_bytes(&p256_order, Curve::P256);
+        let p256_res = private_key_from_bytes(p256_order, Curve::P256);
         assert_matches!(p256_res, Err(EcError::EcKeyInvalidKeyData));
 
         let nist_curves = [Curve::P256];
@@ -672,7 +564,7 @@ mod tests {
         // Keys must not be 0
         for curve in nist_curves {
             assert_matches!(
-                private_key_from_bytes(&vec![0u8; curve.secret_key_size()], curve),
+                private_key_from_bytes(vec![0u8; curve.secret_key_size()], curve),
                 Err(EcError::EcKeyInvalidKeyData)
             );
         }
@@ -695,7 +587,7 @@ mod tests {
 
     fn test_sign_p256(private_key: Vec<u8>, public_key: Vec<u8>, data: Vec<u8>) {
         let curve = Curve::P256;
-        let private_key = private_key_from_bytes(&private_key, curve).unwrap();
+        let private_key = private_key_from_bytes(private_key, curve).unwrap();
         let public_key = pub_key_from_uncompressed(public_key, curve).unwrap();
         match private_key {
             super::EcPrivateKey::P256(private_key) => {
@@ -719,7 +611,7 @@ mod tests {
         expected_signature: Vec<u8>,
     ) {
         let curve = Curve::Ed25519;
-        let private_key = private_key_from_bytes(&private_key, curve).unwrap();
+        let private_key = private_key_from_bytes(private_key, curve).unwrap();
         let public_key = pub_key_from_uncompressed(public_key, curve).unwrap();
         match private_key {
             super::EcPrivateKey::Ed25519(private_key) => {

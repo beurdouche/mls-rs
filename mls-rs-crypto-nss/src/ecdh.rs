@@ -12,6 +12,7 @@ use mls_rs_core::{
     crypto::{CipherSuite, HpkePublicKey, HpkeSecretKey},
     error::IntoAnyError,
 };
+use serde_json::to_vec;
 
 use crate::ec::{
     generate_keypair, private_key_bytes_to_public, private_key_ecdh, private_key_from_bytes,
@@ -72,13 +73,13 @@ impl DhType for Ecdh {
         public_key: &HpkePublicKey,
     ) -> Result<Vec<u8>, Self::Error> {
         Ok(private_key_ecdh(
-            &private_key_from_bytes(secret_key, self.0)?,
+            &private_key_from_bytes(secret_key.to_vec(), self.0)?,
             &self.to_ec_public_key(public_key)?,
         )?)
     }
 
     async fn to_public(&self, secret_key: &HpkeSecretKey) -> Result<HpkePublicKey, Self::Error> {
-        Ok(private_key_bytes_to_public(secret_key, self.0)?.into())
+        Ok(private_key_bytes_to_public(secret_key.to_vec(), self.0)?.into())
     }
 
     async fn generate(&self) -> Result<(HpkeSecretKey, HpkePublicKey), Self::Error> {
