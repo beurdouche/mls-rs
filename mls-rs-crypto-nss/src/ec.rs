@@ -387,8 +387,8 @@ fn is_secret_key_contains_public_key(secret_key: Vec<u8>, curve: Curve) -> bool 
 pub fn private_key_bytes_to_public(secret_key: Vec<u8>, curve: Curve) -> Result<Vec<u8>, EcError> {
     if (!is_secret_key_contains_public_key(secret_key.clone(), curve)) {
         let secret_key = private_key_from_bytes(secret_key.clone(), curve)?;
-    let public_key = private_key_to_public(&secret_key)?;
-    pub_key_to_uncompressed(public_key)
+        let public_key = private_key_to_public(&secret_key)?;
+        pub_key_to_uncompressed(public_key)
     } else {
         let (_, public_key) = secret_key.split_at(private_key_len(curve));
         Ok(public_key.to_vec())
