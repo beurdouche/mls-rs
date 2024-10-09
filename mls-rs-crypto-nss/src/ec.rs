@@ -5,7 +5,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use nss_gk_api::{PrivateKey, PublicKey};
+use nss_gk_api::{err::Res, PrivateKey, PublicKey};
 
 use alloc::vec::Vec;
 use mls_rs_crypto_traits::Curve;
@@ -15,7 +15,10 @@ use std::array::TryFromSliceError;
 
 #[cfg(not(feature = "std"))]
 use core::array::TryFromSliceError;
-use core::fmt::{self, Debug};
+use core::{
+    borrow::Borrow,
+    fmt::{self, Debug},
+};
 
 use crate::Hash;
 
@@ -53,6 +56,12 @@ pub enum EcError {
     #[cfg_attr(feature = "std", error("general nss failure"))]
     GeneralFailure,
 }
+
+// Constants
+pub const DER_SEQUENCE: u8 = 0x30;
+pub const DER_INTEGER: u8 = 0x02;
+pub const DER_BITSTRING: u8 = 0x03;
+pub const DER_OCTETSTRING: u8 = 0x04;
 
 impl From<rand_core::Error> for EcError {
     fn from(value: rand_core::Error) -> Self {
@@ -92,18 +101,72 @@ fn public_key_len(curve: Curve) -> usize {
     }
 }
 
+fn max_size_ecdsa_part(curve: Curve) -> Result<usize, EcError> {
+    // Currently supporting only ECDSA_P256
+    match curve {
+        Curve::P256 => return Ok(0x20),
+        _ => return Err(EcError::EcKeyInvalidKeyData),
+    }
+}
+
 fn build_spki_from_raw_public_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8>, EcError> {
     let mut lh = {
         match curve {
             Curve::P256 => vec![
-                0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06,
-                0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00,
+                DER_SEQUENCE,
+                0x59, // length
+                DER_SEQUENCE,
+                0x13, // length of the curve ID
+                0x06,
+                0x07,
+                0x2a,
+                0x86,
+                0x48,
+                0xce,
+                0x3d,
+                0x02,
+                0x01,
+                0x06, // curve identifier
+                0x08,
+                0x2a,
+                0x86,
+                0x48,
+                0xce,
+                0x3d,
+                0x03,
+                0x01,
+                0x07,
+                DER_BITSTRING,
+                0x42, // length
+                0x00,
             ],
             Curve::Ed25519 => vec![
-                0x30, 0x2a, 0x30, 0x5, 0x6, 0x3, 0x2b, 0x65, 0x70, 0x3, 0x21, 0x0,
+                DER_SEQUENCE,
+                0x2a, //length
+                DER_SEQUENCE,
+                0x5, // length of the curve ID
+                0x6,
+                0x3,
+                0x2b,
+                0x65,
+                0x70, // curve identifier
+                DER_BITSTRING,
+                0x21,
+                0x0,
             ],
             Curve::X25519 => vec![
-                0x30, 0x2a, 0x30, 0x5, 0x6, 0x3, 0x2b, 0x65, 0x6e, 0x3, 0x21, 0x0,
+                DER_SEQUENCE,
+                0x2a, // length of the signature
+                DER_SEQUENCE,
+                0x5, // length of the curve ID
+                0x6,
+                0x3,
+                0x2b,
+                0x65,
+                0x6e, // curve identifier
+                DER_BITSTRING,
+                0x21, // length
+                0x0,
             ],
             _ => return Err(EcError::UnsupportedCurve),
         }
@@ -111,13 +174,23 @@ fn build_spki_from_raw_public_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8>,
 
     let mut key = key.clone();
 
+    // Not supported
     if public_key_len(curve) == 0 {
         return Err(EcError::EcKeyInvalidKeyData);
     }
 
     // if the key length is bigger than the expected -> wrong key
     if key.len() > public_key_len(curve) {
-        return Err(EcError::EcKeyInvalidKeyData);
+        // checking if the first two bytes are the encoding
+        if key[0] != DER_OCTETSTRING
+            && key[1] as usize != public_key_len(curve)
+            && key.len() != public_key_len(curve) + 2
+        {
+            return Err(EcError::EcKeyInvalidKeyData);
+        } else {
+            let (_, key) = key.split_at(2);
+            return build_spki_from_raw_public_key(key.to_vec(), curve);
+        }
     }
 
     // if the key length is shorted than expected -> extend the key
@@ -153,9 +226,31 @@ pub fn pub_key_from_uncompressed(bytes: Vec<u8>, curve: Curve) -> Result<EcPubli
 
 pub fn pub_key_to_uncompressed(key: EcPublicKey) -> Result<Vec<u8>, EcError> {
     match key {
-        EcPublicKey::P256(key) | EcPublicKey::Ed25519(key) | EcPublicKey::X25519(key) => {
+        EcPublicKey::Ed25519(key) | EcPublicKey::X25519(key) => {
             let k0 = key.key_data().unwrap();
-            Ok(k0)
+            Ok(k0.to_vec())
+        }
+
+        EcPublicKey::P256(key) => {
+            let k0 = key.key_data().unwrap();
+            if (k0.len() == public_key_len(Curve::P256))
+            {
+                return Ok(k0.to_vec())
+            };
+
+            // The key is encoded
+
+            if (k0[0] != DER_OCTETSTRING)
+            {
+                return Err(EcError::EcKeyInvalidKeyData);
+            }
+            if (k0[1] as usize != public_key_len(Curve::P256))
+            {
+                return Err(EcError::EcKeyInvalidKeyData);
+            }
+
+            let (enc, key) = k0.split_at(2);
+            Ok(key.to_vec())
         }
     }
 }
@@ -170,6 +265,7 @@ pub fn generate_private_key(curve: Curve) -> Result<EcPrivateKey, EcError> {
     }
 }
 
+// I think that instead of raw bytes, we should use pkcs8/spki
 pub fn private_key_from_pkcs8(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey, EcError> {
     let private_key = nss_gk_api::ec::import_ec_private_key_pkcs8(bytes).unwrap();
     match curve {
@@ -196,17 +292,78 @@ fn build_pkcs8_from_raw_private_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8
     let mut lh = {
         match curve {
             Curve::P256 => vec![
-                0x30, 0x41, 0x2, 0x1, 0x0, 0x30, 0x13, 0x6, 0x7, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x2,
-                0x1, 0x6, 0x8, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x3, 0x1, 0x7, 0x4, 0x27, 0x30, 0x25,
-                0x2, 0x1, 0x1, 0x4, 0x20,
+                DER_SEQUENCE,
+                0x41, // length
+                DER_INTEGER,
+                0x1,
+                0x0, // Key type
+                DER_SEQUENCE,
+                0x13,
+                0x6,
+                0x7,
+                0x2a,
+                0x86,
+                0x48,
+                0xce,
+                0x3d,
+                0x2,
+                0x1,
+                0x6,
+                0x8,
+                0x2a,
+                0x86,
+                0x48,
+                0xce,
+                0x3d,
+                0x3,
+                0x1,
+                0x7, // Curve
+                // See P256 encoding
+                0x4,
+                0x27,
+                0x30,
+                0x25,
+                0x2,
+                0x1,
+                0x1,
+                0x4,
+                0x20,
             ],
             Curve::Ed25519 => vec![
-                0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
-                0x04, 0x20,
+                DER_SEQUENCE,
+                0x2e,
+                DER_INTEGER,
+                0x01,
+                0x00, // Key type
+                DER_SEQUENCE,
+                0x05,
+                0x06,
+                0x03,
+                0x2b,
+                0x65,
+                0x70, //Curve
+                DER_OCTETSTRING,
+                0x22,
+                DER_OCTETSTRING,
+                0x20,
             ],
             Curve::X25519 => vec![
-                0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x04, 0x22,
-                0x04, 0x20,
+                DER_SEQUENCE,
+                0x2e,
+                DER_INTEGER,
+                0x01,
+                0x00, // Key type
+                DER_SEQUENCE,
+                0x05,
+                0x06,
+                0x03,
+                0x2b,
+                0x65,
+                0x6e, // Curve
+                DER_OCTETSTRING,
+                0x22,
+                DER_OCTETSTRING,
+                0x20,
             ],
             _ => return Err(EcError::UnsupportedCurve),
         }
@@ -236,7 +393,7 @@ fn build_pkcs8_from_raw_private_key(key: Vec<u8>, curve: Curve) -> Result<Vec<u8
 }
 
 fn private_key_from_bytes_helper(bytes: Vec<u8>, curve: Curve) -> Vec<u8> {
-    if (is_secret_key_contains_public_key(bytes.clone(), curve)) {
+    if is_secret_key_contains_public_key(bytes.clone(), curve) {
         let (test, _) = bytes.split_at(private_key_len(curve));
         return test.to_vec();
     }
@@ -259,8 +416,7 @@ pub fn private_key_from_bytes(bytes: Vec<u8>, curve: Curve) -> Result<EcPrivateK
 pub fn private_key_to_bytes(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
     match key {
         EcPrivateKey::Ed25519(key) | EcPrivateKey::P256(key) | EcPrivateKey::X25519(key) => {
-            let key = nss_gk_api::ec::export_ec_private_key_from_raw(key).unwrap();
-            Ok(key)
+            Ok(key.key_data().unwrap())
         }
     }
 }
@@ -310,15 +466,173 @@ pub fn sign_p256(private_key: PrivateKey, data: &[u8]) -> Result<Vec<u8>, EcErro
     Ok(signature)
 }
 
-pub fn verify_p256(public_key: PublicKey, signature: &[u8], data: &[u8]) -> Result<bool, EcError> {
+// Removes not needed zeros/ expands the signature until the required length if required
+// This function could be easily extended to P384/etc if changed the input to also a curve
+// And providing this curve to the each length functions
+
+fn format_ecdsa_p256(buffer: &[u8]) -> Result<Vec<u8>, EcError> {
+    if buffer.len() > max_size_ecdsa_part(Curve::P256).unwrap() + 1 {
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    // Correct size, no modification needed
+    if buffer.len() == max_size_ecdsa_part(Curve::P256).unwrap() {
+        return Ok(buffer.to_vec());
+    }
+
+    // It's possible that the buffer was padded (for one byte) with 0
+    // In this case the first byte should be equal to 0
+    if buffer.len() == max_size_ecdsa_part(Curve::P256).unwrap() + 1 {
+        if buffer[0] != 0x00 {
+            return Err(EcError::EcKeyInvalidKeyData);
+        }
+
+        if buffer[1] < 0b1000000 {
+            return Err(EcError::EcKeyInvalidKeyData);
+        }
+
+        // Removing the zero if found
+        let (_, rest) = buffer.split_at(1);
+        return Ok(rest.to_vec());
+    }
+
+    // If the signature is shorter, we extend it with 0 until get_max_size_ecdsa_part
+    let mut buffer = buffer.to_vec();
+    let mut zeros = vec![0 as u8; max_size_ecdsa_part(Curve::P256).unwrap() - buffer.len()];
+    zeros.append(&mut buffer);
+    Ok(zeros)
+}
+
+// ECDSA signature is packed the following way
+// Signature ::= SEQUENCE {
+//  r INTEGER,
+//  s INTEGER,
+// }
+
+fn parse_ecdsa_p256(signature: &[u8]) -> Result<Vec<u8>, EcError> {
+    let signature_vec = signature.to_vec();
+    if signature[0] != DER_SEQUENCE {
+        // Not a correct encoding
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    // the first byte is the length of the rest of the buffer
+    let len_buffer = signature[1];
+    if (len_buffer + 2) as usize != signature.len() {
+        // Wrong length
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    if signature[2] != DER_INTEGER {
+        // Both R and S are integers
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    let len_r = signature[3];
+    // R could be padded with 0x0 at the start if the most significant
+    // bit of the signature is 1.
+    if len_r as usize > max_size_ecdsa_part(Curve::P256).unwrap() + 1 {
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    // Dividing the signature into introduction (Sequence; Len; Integer; Len)
+    // and the rest
+    // Intro is already checked for correctness
+    let (intro, rs) = signature_vec.split_at(4);
+
+    // Reading len_r bytes of signature
+    // It will divide the buffer into R and the rest
+    let skip_until_r = 3;
+    let (r, intro_s) = rs.split_at(len_r as usize);
+
+    // The first byte after R is the type identifier of the next element
+    // For ecdsa, it should be integer
+    if signature[(skip_until_r + len_r + 1) as usize] != DER_INTEGER {
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    // The next byte is the length
+    let len_s = signature_vec[(skip_until_r + len_r + 2) as usize];
+
+    if len_s as usize > max_size_ecdsa_part(Curve::P256).unwrap() + 1 {
+        return Err(EcError::EcKeyInvalidKeyData);
+    }
+
+    // Now the intro_s buffer consists of Type identifier and its length (2)
+    // Intro buffer is already checked
+    // The rest is the S part of the signature
+    let (_, s) = intro_s.split_at(2);
+
+    // Formatting R and S (removing padded zeros, extending the size if necessary)
+    let mut r = format_ecdsa_p256(r).unwrap();
+    let s = format_ecdsa_p256(s).unwrap();
+
+    // Concatenation of R and S
+    r.extend(s);
+
+    Ok(r)
+}
+
+pub fn verify_p256_(
+    public_key: PublicKey,
+    signature: Vec<u8>,
+    data: &[u8],
+) -> Result<bool, EcError> {
     let mut hashed_data = Hash::hash(&Hash::Sha256, data);
-    let result = nss_gk_api::ec::verify_ecdsa(public_key, hashed_data.as_mut(), signature).unwrap();
+    let result =
+        nss_gk_api::ec::verify_ecdsa(public_key, hashed_data.as_mut(), &signature).unwrap();
     Ok(result)
+}
+
+pub fn verify_p256(public_key: PublicKey, signature: &[u8], data: &[u8]) -> Result<bool, EcError> {
+    if signature.len() != max_size_ecdsa_part(Curve::P256).unwrap() * 2 {
+        let signature = parse_ecdsa_p256(signature).unwrap();
+        return verify_p256_(public_key, signature, data);
+    }
+
+    return verify_p256_(public_key, signature.to_vec(), data);
 }
 
 pub fn sign_ed25519(private_key: PrivateKey, data: &[u8]) -> Result<Vec<u8>, EcError> {
     let signature = nss_gk_api::ec::sign_eddsa(private_key, &data).unwrap();
     Ok(signature)
+}
+
+fn encode_ecdsa_p256(signature: Vec<u8>) -> Result <Vec<u8>, EcError>
+{
+    if (signature.len() != max_size_ecdsa_part(Curve::P256).unwrap() * 2)
+    {
+        return Err(EcError::EcKeyInvalidKeyData);   
+    }
+
+    let (r, s) = signature.split_at(max_size_ecdsa_part(Curve::P256).unwrap());
+    let mut signature = vec![
+        DER_SEQUENCE]; 
+
+    let r_len = max_size_ecdsa_part(Curve::P256).unwrap() + {if r[0] < 0b10000000 {0} else {1}};
+    let s_len = max_size_ecdsa_part(Curve::P256).unwrap() + {if s[0] < 0b10000000 {0} else {1}};
+
+    signature.push((4 + r_len + s_len) as u8);
+    signature.push(DER_INTEGER);
+    signature.push(r_len as u8);
+    if (r[0] >= 0b10000000)
+    {
+        signature.push(0);
+    }
+
+    signature.append(&mut r.to_vec());
+
+    signature.push(DER_INTEGER);
+    signature.push(s_len as u8);
+    if (s[0] >= 0b10000000)
+    {
+        signature.push(0);
+    }
+
+    signature.append(&mut s.to_vec());
+    Ok(signature)
+
+
 }
 
 pub fn verify_ed25519(
@@ -378,7 +692,7 @@ impl Debug for KeyPair {
 fn is_secret_key_contains_public_key(secret_key: Vec<u8>, curve: Curve) -> bool {
     let private_key_len = private_key_len(curve);
     let public_key_len = public_key_len(curve);
-    if (secret_key.len() == private_key_len + public_key_len) {
+    if secret_key.len() == private_key_len + public_key_len {
         return true;
     }
     return false;
@@ -459,11 +773,10 @@ mod tests {
         generate_keypair, generate_private_key, private_key_bytes_to_public,
         private_key_from_bytes, private_key_from_pkcs8, private_key_to_bytes, private_key_to_pkcs8,
         pub_key_from_uncompressed, pub_key_to_uncompressed, sign_ed25519, sign_p256,
-        test_utils::{byte_equal, get_test_public_keys, get_test_secret_keys},
-        verify_ed25519, verify_p256, Curve, EcError, EcPublicKey,
+        test_utils::{get_test_public_keys, get_test_secret_keys},
+        verify_ed25519, verify_p256, Curve, EcPublicKey,
     };
 
-    use alloc::vec;
     const SUPPORTED_CURVES: [Curve; 3] = [Curve::Ed25519, Curve::P256, Curve::X25519];
 
     #[test]
