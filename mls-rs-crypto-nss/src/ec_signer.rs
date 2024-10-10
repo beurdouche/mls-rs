@@ -8,7 +8,7 @@ use crate::ec::{
     EcPrivateKey, EcPublicKey,
 };
 use alloc::vec::Vec;
-use core::ops::Deref;
+use core::{ops::Deref};
 use mls_rs_core::crypto::{CipherSuite, SignaturePublicKey, SignatureSecretKey};
 use mls_rs_crypto_traits::Curve;
 
@@ -60,7 +60,7 @@ impl EcSigner {
         &self,
         secret_key: &SignatureSecretKey,
     ) -> Result<SignaturePublicKey, EcSignerError> {
-        Ok(private_key_bytes_to_public(secret_key, self.0)?.into())
+        Ok(private_key_bytes_to_public(secret_key.to_vec(), self.0)?.into())
     }
 
     pub fn sign(
@@ -68,12 +68,12 @@ impl EcSigner {
         secret_key: &SignatureSecretKey,
         data: &[u8],
     ) -> Result<Vec<u8>, EcSignerError> {
-        let secret_key = private_key_from_bytes(secret_key, self.0)?;
+        let secret_key = private_key_from_bytes(secret_key.to_vec(), self.0)?;
 
         match secret_key {
             EcPrivateKey::X25519(_) => Err(EcSignerError::EcKeyNotSignature),
-            EcPrivateKey::Ed25519(private_key) => Ok(sign_ed25519(&private_key, data)?),
-            EcPrivateKey::P256(private_key) => Ok(sign_p256(&private_key, data)?),
+            EcPrivateKey::Ed25519(private_key) => Ok(sign_ed25519(private_key, data)?),
+            EcPrivateKey::P256(private_key) => Ok(sign_p256(private_key, data)?),
         }
     }
 
@@ -83,12 +83,12 @@ impl EcSigner {
         signature: &[u8],
         data: &[u8],
     ) -> Result<(), EcSignerError> {
-        let public_key = pub_key_from_uncompressed(public_key, self.0)?;
+        let public_key = pub_key_from_uncompressed(public_key.to_vec(), self.0)?;
 
         let ver = match public_key {
             EcPublicKey::X25519(_) => Err(EcSignerError::EcKeyNotSignature),
-            EcPublicKey::Ed25519(key) => Ok(verify_ed25519(&key, signature, data)?),
-            EcPublicKey::P256(key) => Ok(verify_p256(&key, signature, data)?),
+            EcPublicKey::Ed25519(key) => Ok(verify_ed25519(key, signature, data)?),
+            EcPublicKey::P256(key) => Ok(verify_p256(key, signature, data)?),
         }?;
 
         ver.then_some(()).ok_or(EcSignerError::InvalidSignature)
