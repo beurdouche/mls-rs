@@ -75,7 +75,6 @@ impl DhType for Ecdh {
             &private_key_from_bytes(secret_key.to_vec(), self.0)?,
             &self.to_ec_public_key(public_key)?,
         )?)
-
     }
     async fn to_public(&self, secret_key: &HpkeSecretKey) -> Result<HpkePublicKey, Self::Error> {
         Ok(private_key_bytes_to_public(secret_key.to_vec(), self.0)?.into())
@@ -115,6 +114,7 @@ mod test {
 
     use crate::ecdh::Ecdh;
 
+    #[allow(dead_code)]
     fn get_ecdhs() -> Vec<Ecdh> {
         [CipherSuite::P256_AES128, CipherSuite::CURVE25519_AES128]
             .into_iter()

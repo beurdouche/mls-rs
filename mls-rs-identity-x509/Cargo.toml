@@ -11,6 +11,8 @@ license = "Apache-2.0 OR MIT"
 [features]
 default = ["std"]
 std = ["mls-rs-core/std", "dep:thiserror"]
+ffi = []
+arbitrary = []
 
 [dependencies]
 mls-rs-core = { path = "../mls-rs-core", default-features = false, features = ["x509"], version = "0.18.0" }
@@ -33,3 +35,6 @@ getrandom = { version = "0.2", features = ["js"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { version = "^0.2.79" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(mls_build_async)'] }

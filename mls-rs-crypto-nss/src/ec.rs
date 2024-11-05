@@ -5,7 +5,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use nss_gk_api::{err::Res, PrivateKey, PublicKey};
+use nss_gk_api::{PrivateKey, PublicKey};
 
 use alloc::vec::Vec;
 use mls_rs_crypto_traits::Curve;
@@ -15,10 +15,7 @@ use std::array::TryFromSliceError;
 
 #[cfg(not(feature = "std"))]
 use core::array::TryFromSliceError;
-use core::{
-    borrow::Borrow,
-    fmt::{self, Debug},
-};
+use core::fmt::{self, Debug};
 
 use crate::Hash;
 
@@ -233,23 +230,20 @@ pub fn pub_key_to_uncompressed(key: EcPublicKey) -> Result<Vec<u8>, EcError> {
 
         EcPublicKey::P256(key) => {
             let k0 = key.key_data().unwrap();
-            if (k0.len() == public_key_len(Curve::P256))
-            {
-                return Ok(k0.to_vec())
+            if k0.len() == public_key_len(Curve::P256) {
+                return Ok(k0.to_vec());
             };
 
             // The key is encoded
 
-            if (k0[0] != DER_OCTETSTRING)
-            {
+            if k0[0] != DER_OCTETSTRING {
                 return Err(EcError::EcKeyInvalidKeyData);
             }
-            if (k0[1] as usize != public_key_len(Curve::P256))
-            {
+            if k0[1] as usize != public_key_len(Curve::P256) {
                 return Err(EcError::EcKeyInvalidKeyData);
             }
 
-            let (enc, key) = k0.split_at(2);
+            let (_, key) = k0.split_at(2);
             Ok(key.to_vec())
         }
     }
@@ -266,6 +260,7 @@ pub fn generate_private_key(curve: Curve) -> Result<EcPrivateKey, EcError> {
 }
 
 // I think that instead of raw bytes, we should use pkcs8/spki
+#[allow(dead_code)]
 pub fn private_key_from_pkcs8(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey, EcError> {
     let private_key = nss_gk_api::ec::import_ec_private_key_pkcs8(bytes).unwrap();
     match curve {
@@ -276,6 +271,7 @@ pub fn private_key_from_pkcs8(bytes: &[u8], curve: Curve) -> Result<EcPrivateKey
     }
 }
 
+#[allow(dead_code)]
 pub fn private_key_to_pkcs8(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
     match key {
         EcPrivateKey::P256(key) | EcPrivateKey::Ed25519(key) | EcPrivateKey::X25519(key) => {
@@ -284,7 +280,6 @@ pub fn private_key_to_pkcs8(key: EcPrivateKey) -> Result<Vec<u8>, EcError> {
                 Err(_) => return Err(EcError::EcKeyInvalidKeyData),
             }
         }
-        _ => Err(EcError::UnsupportedCurve),
     }
 }
 
@@ -538,7 +533,7 @@ fn parse_ecdsa_p256(signature: &[u8]) -> Result<Vec<u8>, EcError> {
     // Dividing the signature into introduction (Sequence; Len; Integer; Len)
     // and the rest
     // Intro is already checked for correctness
-    let (intro, rs) = signature_vec.split_at(4);
+    let (_, rs) = signature_vec.split_at(4);
 
     // Reading len_r bytes of signature
     // It will divide the buffer into R and the rest
@@ -598,25 +593,34 @@ pub fn sign_ed25519(private_key: PrivateKey, data: &[u8]) -> Result<Vec<u8>, EcE
     Ok(signature)
 }
 
-fn encode_ecdsa_p256(signature: Vec<u8>) -> Result <Vec<u8>, EcError>
-{
-    if (signature.len() != max_size_ecdsa_part(Curve::P256).unwrap() * 2)
-    {
-        return Err(EcError::EcKeyInvalidKeyData);   
+#[allow(dead_code)]
+fn encode_ecdsa_p256(signature: Vec<u8>) -> Result<Vec<u8>, EcError> {
+    if signature.len() != max_size_ecdsa_part(Curve::P256).unwrap() * 2 {
+        return Err(EcError::EcKeyInvalidKeyData);
     }
 
     let (r, s) = signature.split_at(max_size_ecdsa_part(Curve::P256).unwrap());
-    let mut signature = vec![
-        DER_SEQUENCE]; 
+    let mut signature = vec![DER_SEQUENCE];
 
-    let r_len = max_size_ecdsa_part(Curve::P256).unwrap() + {if r[0] < 0b10000000 {0} else {1}};
-    let s_len = max_size_ecdsa_part(Curve::P256).unwrap() + {if s[0] < 0b10000000 {0} else {1}};
+    let r_len = max_size_ecdsa_part(Curve::P256).unwrap() + {
+        if r[0] < 0b10000000 {
+            0
+        } else {
+            1
+        }
+    };
+    let s_len = max_size_ecdsa_part(Curve::P256).unwrap() + {
+        if s[0] < 0b10000000 {
+            0
+        } else {
+            1
+        }
+    };
 
     signature.push((4 + r_len + s_len) as u8);
     signature.push(DER_INTEGER);
     signature.push(r_len as u8);
-    if (r[0] >= 0b10000000)
-    {
+    if r[0] >= 0b10000000 {
         signature.push(0);
     }
 
@@ -624,15 +628,12 @@ fn encode_ecdsa_p256(signature: Vec<u8>) -> Result <Vec<u8>, EcError>
 
     signature.push(DER_INTEGER);
     signature.push(s_len as u8);
-    if (s[0] >= 0b10000000)
-    {
+    if s[0] >= 0b10000000 {
         signature.push(0);
     }
 
     signature.append(&mut s.to_vec());
     Ok(signature)
-
-
 }
 
 pub fn verify_ed25519(
@@ -699,7 +700,7 @@ fn is_secret_key_contains_public_key(secret_key: Vec<u8>, curve: Curve) -> bool 
 }
 
 pub fn private_key_bytes_to_public(secret_key: Vec<u8>, curve: Curve) -> Result<Vec<u8>, EcError> {
-    if (!is_secret_key_contains_public_key(secret_key.clone(), curve)) {
+    if !is_secret_key_contains_public_key(secret_key.clone(), curve) {
         let secret_key = private_key_from_bytes(secret_key.clone(), curve)?;
         let public_key = private_key_to_public(&secret_key)?;
         pub_key_to_uncompressed(public_key)
@@ -752,6 +753,7 @@ pub(crate) mod test_utils {
         curve == Curve::X25519 || curve == Curve::Ed25519
     }
 
+    #[allow(dead_code)]
     pub fn byte_equal(curve: Curve, other: Curve) -> bool {
         if curve == other {
             return true;

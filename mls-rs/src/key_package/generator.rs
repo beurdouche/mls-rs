@@ -33,6 +33,7 @@ where
     pub cipher_suite_provider: &'a CP,
     pub signing_identity: &'a SigningIdentity,
     pub signing_key: &'a SignatureSecretKey,
+    #[allow(dead_code)]
     pub identity_provider: &'a IP,
 }
 

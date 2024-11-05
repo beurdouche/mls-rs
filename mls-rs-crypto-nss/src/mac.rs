@@ -4,8 +4,8 @@
 
 use alloc::vec::Vec;
 use mls_rs_core::crypto::CipherSuite;
-use nss_gk_api::hmac;
 use nss_gk_api::hash;
+use nss_gk_api::hmac;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
@@ -42,12 +42,9 @@ impl Hash {
 
     pub fn hash(&self, data: &[u8]) -> Vec<u8> {
         match self {
-            Hash::Sha256 => hash::hash(hash::HashAlgorithm::SHA2_256, data)
-                .expect("InternalError"),
-            Hash::Sha384 => hash::hash(hash::HashAlgorithm::SHA2_384, data)
-                .expect("InternalError"),
-            Hash::Sha512 => hash::hash(hash::HashAlgorithm::SHA2_512, data)
-                .expect("InternalError"),
+            Hash::Sha256 => hash::hash(hash::HashAlgorithm::SHA2_256, data).expect("InternalError"),
+            Hash::Sha384 => hash::hash(hash::HashAlgorithm::SHA2_384, data).expect("InternalError"),
+            Hash::Sha512 => hash::hash(hash::HashAlgorithm::SHA2_512, data).expect("InternalError"),
         }
     }
 
@@ -65,11 +62,12 @@ impl Hash {
 
 mod test {
     use crate::Hash;
-    use serde::Deserialize;
     use alloc::vec::Vec;
+    use serde::Deserialize;
 
     #[derive(Deserialize)]
     struct TestCase {
+        #[allow(dead_code)]
         pub ciphersuite: u16,
         pub hash_function: u8,
         #[serde(with = "hex::serde")]
@@ -78,22 +76,18 @@ mod test {
         pub hash: Vec<u8>,
     }
 
-
-    fn run_test_case(t: TestCase)
-    {
-        let hash_fun = 
-            match t.hash_function
-            {
-                1 => Hash::Sha256,
-                2 => Hash::Sha384,
-                _default => Hash::Sha256,
-            };
+    #[allow(dead_code)]
+    fn run_test_case(t: TestCase) {
+        let hash_fun = match t.hash_function {
+            1 => Hash::Sha256,
+            2 => Hash::Sha384,
+            _default => Hash::Sha256,
+        };
         let message = t.message;
         let hash_result = hash_fun.hash(message.as_slice());
         assert_eq!(hash_result, t.hash);
-
     }
-    
+
     #[test]
     fn test_algo_test_cases() {
         let test_case_file = include_str!("../test_data/test_hash.json");
@@ -103,5 +97,4 @@ mod test {
             run_test_case(case);
         }
     }
-
 }
