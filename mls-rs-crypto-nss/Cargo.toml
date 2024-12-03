@@ -18,7 +18,6 @@ std = [
     "mls-rs-crypto-traits/std",
     "getrandom/std",
     "rand_core/std",
-    "p256/std",
     "dep:thiserror"
 ]
 
@@ -26,8 +25,7 @@ std = [
 mls-rs-core = { path = "../mls-rs-core", default-features = false, version = "0.18.0" }
 mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.9.0" }
 mls-rs-crypto-traits = { path = "../mls-rs-crypto-traits", default-features = false, version = "0.10.0" }
-# nss-gk-api = { path = "/opt/mozilla/nss-gk-api", default-features = false}
-nss-gk-api = { git = "https://github.com/beurdouche/nss-gk-api", rev = "d4bc7687f2d4a923c83beeaeefbeacd6f0d12040", default-features = false}
+nss-gk-api = { git = "https://github.com/beurdouche/nss-gk-api", rev = "82e780f47026b84a0e0a06bff17fa95661d129a3", default-features = false}
 
 thiserror = { version = "1.0.40", optional = true }
 zeroize = { version = "1", default-features = false, features = ["alloc", "zeroize_derive"] }
@@ -36,20 +34,20 @@ zeroize = { version = "1", default-features = false, features = ["alloc", "zeroi
 getrandom = { version = "0.2", default-features = false, features = ["custom"] }
 rand_core = { version = "0.6", default-features = false, features = ["alloc"] }
 
-# KEM
-p256 = { version = "0.13", default-features = false, features = ["alloc", "ecdh", "ecdsa", "pem"] }
-x25519-dalek = { version = "2", default-features = false, features = ["alloc", "static_secrets"] }
-ed25519-dalek = { version = "2", default-features = false, features = ["alloc", "rand_core"] }
-
 maybe-async = "0.2.10"
 
-[dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
 hex = { version = "^0.4.3", features = ["serde"] }
+
+[dev-dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "^1.0" }
 assert_matches = "1.5.0"
 mls-rs-core = { path = "../mls-rs-core", version = "0.18.0", features = ["test_suite"] }
 mls-rs-crypto-hpke = { path = "../mls-rs-crypto-hpke", default-features = false, version = "0.9.0", features = ["test_utils"] }
 
-[target.'cfg(mls_build_async)'.dependencies]
-async-trait = "^0.1"
+# [target.'cfg(mls_build_async)'.dependencies]
+# async-trait = "^0.1"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(mls_build_async)'] }

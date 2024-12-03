@@ -4,6 +4,7 @@
 
 use alloc::vec::Vec;
 use mls_rs_core::crypto::CipherSuite;
+use nss_gk_api::hash;
 use nss_gk_api::hmac;
 
 #[derive(Debug)]
@@ -41,12 +42,9 @@ impl Hash {
 
     pub fn hash(&self, data: &[u8]) -> Vec<u8> {
         match self {
-            Hash::Sha256 => nss_gk_api::hash::hash(nss_gk_api::hash::HashAlgorithm::SHA2_256, data)
-                .expect("InternalError"),
-            Hash::Sha384 => nss_gk_api::hash::hash(nss_gk_api::hash::HashAlgorithm::SHA2_384, data)
-                .expect("InternalError"),
-            Hash::Sha512 => nss_gk_api::hash::hash(nss_gk_api::hash::HashAlgorithm::SHA2_512, data)
-                .expect("InternalError"),
+            Hash::Sha256 => hash::hash(hash::HashAlgorithm::SHA2_256, data).expect("InternalError"),
+            Hash::Sha384 => hash::hash(hash::HashAlgorithm::SHA2_384, data).expect("InternalError"),
+            Hash::Sha512 => hash::hash(hash::HashAlgorithm::SHA2_512, data).expect("InternalError"),
         }
     }
 
@@ -58,6 +56,45 @@ impl Hash {
                 .map_err(|_| HashError::InternalError)?),
             Hash::Sha512 => Ok(hmac::hmac(&hmac::HmacAlgorithm::HMAC_SHA2_512, key, data)
                 .map_err(|_| HashError::InternalError)?),
+        }
+    }
+}
+
+mod test {
+    use crate::Hash;
+    use alloc::vec::Vec;
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct TestCase {
+        #[allow(dead_code)]
+        pub ciphersuite: u16,
+        pub hash_function: u8,
+        #[serde(with = "hex::serde")]
+        pub message: Vec<u8>,
+        #[serde(with = "hex::serde")]
+        pub hash: Vec<u8>,
+    }
+
+    #[allow(dead_code)]
+    fn run_test_case(t: TestCase) {
+        let hash_fun = match t.hash_function {
+            1 => Hash::Sha256,
+            2 => Hash::Sha384,
+            _default => Hash::Sha256,
+        };
+        let message = t.message;
+        let hash_result = hash_fun.hash(message.as_slice());
+        assert_eq!(hash_result, t.hash);
+    }
+
+    #[test]
+    fn test_algo_test_cases() {
+        let test_case_file = include_str!("../test_data/test_hash.json");
+        let test_cases: Vec<TestCase> = serde_json::from_str(test_case_file).unwrap();
+
+        for case in test_cases {
+            run_test_case(case);
         }
     }
 }
