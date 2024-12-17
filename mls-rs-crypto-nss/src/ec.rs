@@ -224,12 +224,12 @@ pub fn pub_key_from_uncompressed(bytes: Vec<u8>, curve: Curve) -> Result<EcPubli
 pub fn pub_key_to_uncompressed(key: EcPublicKey) -> Result<Vec<u8>, EcError> {
     match key {
         EcPublicKey::Ed25519(key) | EcPublicKey::X25519(key) => {
-            let k0 = key.key_data().unwrap();
+            let k0 = key.key_data_alt().unwrap();
             Ok(k0.to_vec())
         }
 
         EcPublicKey::P256(key) => {
-            let k0 = key.key_data().unwrap();
+            let k0 = key.key_data_alt().unwrap();
             if k0.len() == public_key_len(Curve::P256) {
                 return Ok(k0.to_vec());
             };
