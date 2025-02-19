@@ -17,9 +17,8 @@ use mls_rs::{
         BaseInMemoryConfig, ClientBuilder, WithCryptoProvider, WithIdentityProvider, WithMlsRules,
     },
     crypto::SignatureSecretKey,
-    error::MlsError,
     external_client::ExternalClient,
-    group::{ExportedTree, Member, ReceivedMessage, Roster, StateUpdate},
+    group::{CommitEffect, ExportedTree, GroupContext, Member, ReceivedMessage, Roster},
     identity::{
         basic::{BasicCredential, BasicIdentityProvider},
         Credential, SigningIdentity,
@@ -162,7 +161,7 @@ impl MlsRules for TestMlsRules {
         _: CommitDirection,
         _: CommitSource,
         _: &Roster,
-        _: &ExtensionList,
+        _: &GroupContext,
         proposals: ProposalBundle,
     ) -> Result<ProposalBundle, Self::Error> {
         Ok(proposals)
@@ -171,7 +170,7 @@ impl MlsRules for TestMlsRules {
     fn commit_options(
         &self,
         _: &Roster,
-        _: &ExtensionList,
+        _: &GroupContext,
         _: &ProposalBundle,
     ) -> Result<CommitOptions, Self::Error> {
         Ok(*self.commit_options.lock().unwrap())
@@ -180,7 +179,7 @@ impl MlsRules for TestMlsRules {
     fn encryption_options(
         &self,
         _: &Roster,
-        _: &ExtensionList,
+        _: &GroupContext,
     ) -> Result<EncryptionOptions, Self::Error> {
         Ok(*self.encryption_options.lock().unwrap())
     }
@@ -216,7 +215,11 @@ impl MlsClient for MlsClientImpl {
 
         let group = client
             .client
-            .create_group_with_id(request.group_id, ExtensionList::default())
+            .create_group_with_id(
+                request.group_id,
+                ExtensionList::default(),
+                Default::default(),
+            )
             .map_err(abort)?;
 
         client.group = Some(group);
@@ -237,7 +240,7 @@ impl MlsClient for MlsClientImpl {
 
         let key_package = client
             .client
-            .generate_key_package_message()
+            .generate_key_package_message(Default::default(), Default::default())
             .map_err(abort)?;
 
         let (_, key_pckg_secrets) = client.key_package_repo.key_packages()[0].clone();
@@ -692,11 +695,7 @@ impl MlsClientImpl {
 
         for proposal_bytes in &request.by_reference {
             let proposal = MlsMessage::from_bytes(proposal_bytes).map_err(abort)?;
-
-            match group.process_incoming_message(proposal) {
-                Ok(_) | Err(MlsError::CantProcessMessageFromSelf) => Ok(()),
-                Err(e) => Err(abort(e)),
-            }?;
+            group.process_incoming_message(proposal).map_err(abort)?;
         }
 
         {
@@ -775,7 +774,7 @@ impl MlsClientImpl {
     async fn handle_commit(
         &self,
         request: Request<HandleCommitRequest>,
-    ) -> Result<(Response<HandleCommitResponse>, StateUpdate), Status> {
+    ) -> Result<(Response<HandleCommitResponse>, CommitEffect), Status> {
         let request = request.into_inner();
         let clients = &mut self.clients.lock().await;
 
@@ -788,11 +787,7 @@ impl MlsClientImpl {
 
         for proposal in &request.proposal {
             let proposal = MlsMessage::from_bytes(proposal).map_err(abort)?;
-
-            match group.process_incoming_message(proposal) {
-                Ok(_) | Err(MlsError::CantProcessMessageFromSelf) => Ok(()),
-                Err(e) => Err(abort(e)),
-            }?;
+            group.process_incoming_message(proposal).map_err(abort)?;
         }
 
         let commit = MlsMessage::from_bytes(&request.commit).map_err(abort)?;
@@ -805,7 +800,7 @@ impl MlsClientImpl {
         };
 
         match message {
-            ReceivedMessage::Commit(update) => Ok((Response::new(resp), update.state_update)),
+            ReceivedMessage::Commit(update) => Ok((Response::new(resp), update.effect)),
             _ => Err(Status::aborted("message not a commit.")),
         }
     }

@@ -1,6 +1,6 @@
 [package]
 name = "mls-rs-core"
-version = "0.18.0"
+version = "0.21.0"
 edition = "2021"
 description = "Core components and traits for mls-rs"
 homepage = "https://github.com/awslabs/mls-rs"
@@ -22,9 +22,11 @@ ffi = []
 x509 = []
 test_suite = ["serde", "dep:serde_json", "dep:itertools"]
 serde = ["dep:serde", "zeroize/serde", "hex/serde", "dep:serde_bytes"]
+last_resort_key_package_ext = []
+post-quantum = []
 
 [dependencies]
-mls-rs-codec = { version = "0.5.2", path = "../mls-rs-codec", default-features = false}
+mls-rs-codec = { version = "0.6", path = "../mls-rs-codec", default-features = false}
 zeroize = { version = "1", default-features = false, features = ["alloc", "zeroize_derive"] }
 arbitrary = { version = "1", features = ["derive"], optional = true }
 thiserror = { version = "1.0.40", optional = true }
@@ -45,7 +47,7 @@ async-trait = "^0.1"
 assert_matches = "1.5.0"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen-test = { version = "0.3.26", default-features = false }
+wasm-bindgen-test = { version = "0.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { version = "^0.2.79" }

@@ -43,6 +43,9 @@ use zeroize::Zeroizing;
 use alloc::vec;
 use alloc::vec::Vec;
 
+#[cfg(all(test, target_arch = "wasm32"))]
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
 #[derive(Debug)]
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 pub enum RustCryptoError {
@@ -111,6 +114,7 @@ impl RustCryptoProvider {
     pub fn all_supported_cipher_suites() -> Vec<CipherSuite> {
         vec![
             CipherSuite::P256_AES128,
+            CipherSuite::P384_AES256,
             CipherSuite::CURVE25519_AES128,
             CipherSuite::CURVE25519_CHACHA,
         ]
@@ -386,4 +390,11 @@ fn mls_core_tests() {
         mls_rs_core::crypto::test_suite::verify_hpke_context_tests(&hpke, cs);
         mls_rs_core::crypto::test_suite::verify_hpke_encap_tests(&mut hpke, cs);
     }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[wasm_bindgen_test::wasm_bindgen_test]
+async fn mls_rs_core_test() {
+    let provider = RustCryptoProvider::new();
+    mls_rs_core::crypto::test_suite::verify_tests(&provider, true).await;
 }

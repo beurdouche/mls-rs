@@ -10,7 +10,7 @@ use std::{
     ptr::null_mut,
 };
 
-use aws_lc_sys::{
+use crate::aws_lc_sys_impl::{
     stack_st, ASN1_STRING_data, ASN1_STRING_free, ASN1_STRING_get0_data, ASN1_STRING_length,
     ASN1_STRING_set, ASN1_STRING_type_new, BIO_free, BIO_new, BIO_number_written, BIO_read,
     BIO_s_mem, GENERAL_NAME_free, GENERAL_NAME_get0_value, GENERAL_NAME_new,
@@ -88,7 +88,7 @@ impl X509Name {
 
     #[cfg(test)]
     pub fn to_der(&self) -> Result<Vec<u8>, AwsLcCryptoError> {
-        use aws_lc_sys::i2d_X509_NAME;
+        use crate::aws_lc_sys_impl::i2d_X509_NAME;
 
         unsafe {
             let len = check_int_return(i2d_X509_NAME(self.0, null_mut()))?;
@@ -172,6 +172,7 @@ impl GeneralName {
 
             let value = check_non_null(GENERAL_NAME_get0_value(self.0, &mut name_type))?;
 
+            #[allow(non_snake_case)]
             match name_type {
                 GEN_EMAIL => Ok(SubjectAltName::Email(asn1_to_string(value.cast())?)),
                 GEN_URI => Ok(SubjectAltName::Uri(asn1_to_string(value.cast())?)),
@@ -364,7 +365,7 @@ pub struct X509ExtensionContext<'a> {
     pub(crate) phantom: PhantomData<&'a Certificate>,
 }
 
-impl<'a> X509ExtensionContext<'a> {
+impl X509ExtensionContext<'_> {
     pub fn as_mut_ptr(&mut self) -> *mut X509V3_CTX {
         &mut self.inner
     }
@@ -490,7 +491,8 @@ impl X509Extension {
                 return Err(AwsLcCryptoError::CryptoError);
             }
 
-            let mut out_buffer = vec![0u8; BIO_number_written(bio_out)];
+            let out_len = BIO_number_written(bio_out);
+            let mut out_buffer = vec![0u8; out_len.try_into()?];
 
             let res = BIO_read(
                 bio_out,
@@ -580,7 +582,7 @@ unsafe fn asn1_to_ip(value: *mut ASN1_STRING) -> Result<String, AwsLcCryptoError
     }
 }
 
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals, non_snake_case)]
 pub(super) unsafe fn components_from_name(
     name: *mut X509_NAME,
 ) -> Result<Vec<SubjectComponent>, AwsLcCryptoError> {
